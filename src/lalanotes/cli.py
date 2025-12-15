@@ -23,11 +23,43 @@ console = Console()
 
 
 def _background_sync():
-    """Background sync function to run on exit."""
+    """Background sync and auto-tag function to run on exit."""
     try:
         config = Config()
+
+        # Auto-tag recent notes if enabled
+        if config.get("auto_tag"):
+            storage = Storage(config)
+            index = SearchIndex(config)
+            tagger = AutoTagger()
+
+            # Get recent notes (modified in last hour)
+            from datetime import datetime, timedelta
+
+            recent_files = []
+            for file_path in storage.list_notes()[:10]:  # Check last 10 notes
+                try:
+                    note = storage.load_note(file_path)
+                    # If modified in last hour and has no tags or few tags
+                    if (
+                        datetime.now() - note.modified < timedelta(hours=1)
+                        and len(note.tags) < 3
+                    ):
+                        # Generate and add tags
+                        auto_tags = tagger.extract_tags(note.content, note.title)
+                        if auto_tags:
+                            note.tags = list(set(note.tags + auto_tags))  # Merge tags
+                            storage.save_note(note)
+                            index.add_note(note)
+                            recent_files.append(file_path)
+                except Exception:
+                    continue
+
+            if recent_files:
+                index.close()
+
+        # Sync to git if enabled
         if config.get("auto_sync") and config.get("git_remote"):
-            # Run sync in background, suppress output
             sync = GitSync(config)
             sync.sync("Auto-sync on exit")
     except Exception:
