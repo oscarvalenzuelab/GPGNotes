@@ -3,10 +3,11 @@
 import os
 import subprocess
 from pathlib import Path
-from typing import List, Optional
-from .note import Note
-from .encryption import Encryption
+from typing import List
+
 from .config import Config
+from .encryption import Encryption
+from .note import Note
 
 
 class Storage:

@@ -33,7 +33,7 @@ class Config:
     def _load_config(self) -> dict:
         """Load configuration from file or create default."""
         if self.config_file.exists():
-            with open(self.config_file, 'r') as f:
+            with open(self.config_file) as f:
                 return {**self.DEFAULT_CONFIG, **json.load(f)}
         return self.DEFAULT_CONFIG.copy()
 

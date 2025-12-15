@@ -3,8 +3,9 @@
 import re
 from collections import Counter
 from typing import List, Set
-from sklearn.feature_extraction.text import TfidfVectorizer
+
 import numpy as np
+from sklearn.feature_extraction.text import TfidfVectorizer
 
 
 class AutoTagger:

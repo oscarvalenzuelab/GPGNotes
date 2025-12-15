@@ -3,9 +3,9 @@
 import sqlite3
 from pathlib import Path
 from typing import List, Tuple
-from datetime import datetime
-from .note import Note
+
 from .config import Config
+from .note import Note
 
 
 class SearchIndex:

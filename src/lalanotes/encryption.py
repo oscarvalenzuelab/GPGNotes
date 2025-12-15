@@ -1,9 +1,10 @@
 """GPG encryption/decryption for notes."""
 
-import gnupg
 import tempfile
 from pathlib import Path
 from typing import Optional
+
+import gnupg
 
 
 class Encryption:
@@ -64,7 +65,7 @@ class Encryption:
 
     def encrypt_from_temp(self, temp_path: Path, output_path: Path) -> bool:
         """Read from temp file and encrypt to output path."""
-        with open(temp_path, 'r') as f:
+        with open(temp_path) as f:
             content = f.read()
 
         return self.encrypt(content, output_path)

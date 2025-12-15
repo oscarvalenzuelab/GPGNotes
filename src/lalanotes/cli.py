@@ -1,20 +1,20 @@
 """Command-line interface for LalaNotes."""
 
 import sys
-import click
 from pathlib import Path
-from rich.console import Console
-from rich.table import Table
-from rich.panel import Panel
+
+import click
 from prompt_toolkit import prompt
 from prompt_toolkit.completion import WordCompleter
-from datetime import datetime
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
 
 from .config import Config
-from .storage import Storage
-from .note import Note
-from .sync import GitSync
 from .index import SearchIndex
+from .note import Note
+from .storage import Storage
+from .sync import GitSync
 from .tagging import AutoTagger
 
 
@@ -146,7 +146,7 @@ def init():
     git_remote = prompt("Git remote URL [skip]: ").strip()
     if git_remote:
         cfg.set('git_remote', git_remote)
-        console.print(f"[green]✓[/green] Git remote set")
+        console.print("[green]✓[/green] Git remote set")
 
         # Initialize Git repo
         try:

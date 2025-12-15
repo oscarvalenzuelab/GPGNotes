@@ -1,9 +1,10 @@
 """Note model and operations."""
 
-import frontmatter
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
+
+import frontmatter
 from slugify import slugify
 
 

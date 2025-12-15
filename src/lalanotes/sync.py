@@ -1,8 +1,9 @@
 """Git synchronization for notes."""
 
-import git
-from pathlib import Path
 from typing import Optional
+
+import git
+
 from .config import Config
 
 
