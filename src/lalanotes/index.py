@@ -47,25 +47,31 @@ class SearchIndex:
         self.remove_note(note.file_path)
 
         # Insert new entry
-        self.conn.execute("""
+        self.conn.execute(
+            """
             INSERT INTO notes_fts (title, content, tags, file_path, created, modified)
             VALUES (?, ?, ?, ?, ?, ?)
-        """, (
-            note.title,
-            note.content,
-            ' '.join(note.tags),
-            str(note.file_path),
-            note.created.isoformat(),
-            note.modified.isoformat()
-        ))
+        """,
+            (
+                note.title,
+                note.content,
+                " ".join(note.tags),
+                str(note.file_path),
+                note.created.isoformat(),
+                note.modified.isoformat(),
+            ),
+        )
 
         self.conn.commit()
 
     def remove_note(self, file_path: Path):
         """Remove note from index."""
-        self.conn.execute("""
+        self.conn.execute(
+            """
             DELETE FROM notes_fts WHERE file_path = ?
-        """, (str(file_path),))
+        """,
+            (str(file_path),),
+        )
 
         self.conn.commit()
 
@@ -75,27 +81,33 @@ class SearchIndex:
 
         Returns list of (file_path, rank) tuples.
         """
-        cursor = self.conn.execute("""
+        cursor = self.conn.execute(
+            """
             SELECT file_path, rank
             FROM notes_fts
             WHERE notes_fts MATCH ?
             ORDER BY rank
             LIMIT ?
-        """, (query, limit))
+        """,
+            (query, limit),
+        )
 
-        return [(row['file_path'], row['rank']) for row in cursor]
+        return [(row["file_path"], row["rank"]) for row in cursor]
 
     def search_by_tag(self, tag: str, limit: int = 50) -> List[str]:
         """Search notes by tag."""
-        cursor = self.conn.execute("""
+        cursor = self.conn.execute(
+            """
             SELECT file_path
             FROM notes_fts
             WHERE tags MATCH ?
             ORDER BY modified DESC
             LIMIT ?
-        """, (f'"{tag}"', limit))
+        """,
+            (f'"{tag}"', limit),
+        )
 
-        return [row['file_path'] for row in cursor]
+        return [row["file_path"] for row in cursor]
 
     def list_all(self, limit: int = 100) -> List[Tuple[str, str, str]]:
         """
@@ -103,14 +115,17 @@ class SearchIndex:
 
         Returns list of (file_path, title, modified) tuples.
         """
-        cursor = self.conn.execute("""
+        cursor = self.conn.execute(
+            """
             SELECT file_path, title, modified
             FROM notes_fts
             ORDER BY modified DESC
             LIMIT ?
-        """, (limit,))
+        """,
+            (limit,),
+        )
 
-        return [(row['file_path'], row['title'], row['modified']) for row in cursor]
+        return [(row["file_path"], row["title"], row["modified"]) for row in cursor]
 
     def rebuild_index(self, notes: List[Note]):
         """Rebuild entire index from scratch."""

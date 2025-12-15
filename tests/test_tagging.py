@@ -60,7 +60,7 @@ def test_tokenize_removes_markdown():
     tagger = AutoTagger()
     text = "# Header\n**bold** and *italic* text with [link](url) and `code`"
 
-    words = tagger._extract_words(text)
+    words = tagger._tokenize(text)
 
     # Should extract words, not markdown syntax
     assert 'header' in words
@@ -107,7 +107,7 @@ def function():
 
 More text.
 """
-    words = tagger._extract_words(text)
+    words = tagger._tokenize(text)
 
     # Should have words from text but not from code block
     assert 'some' in words

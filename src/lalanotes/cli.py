@@ -17,7 +17,6 @@ from .storage import Storage
 from .sync import GitSync
 from .tagging import AutoTagger
 
-
 console = Console()
 
 
@@ -27,7 +26,7 @@ console = Console()
 def main(ctx):
     """LalaNotes - Encrypted note-taking with Git sync."""
     # Check if this is first run (except for init and config commands)
-    if ctx.invoked_subcommand not in ['init', 'config', None]:
+    if ctx.invoked_subcommand not in ["init", "config", None]:
         config = Config()
         if not config.is_configured():
             console.print("[yellow]⚠ LalaNotes is not configured yet.[/yellow]")
@@ -48,12 +47,14 @@ def main(ctx):
 @main.command()
 def init():
     """Initialize LalaNotes with interactive setup."""
-    console.print(Panel.fit(
-        "[cyan]Welcome to LalaNotes![/cyan]\n\n"
-        "Let's set up your encrypted note-taking environment.\n"
-        "You'll need a GPG key for encryption.",
-        title="Initial Setup"
-    ))
+    console.print(
+        Panel.fit(
+            "[cyan]Welcome to LalaNotes![/cyan]\n\n"
+            "Let's set up your encrypted note-taking environment.\n"
+            "You'll need a GPG key for encryption.",
+            title="Initial Setup",
+        )
+    )
 
     cfg = Config()
     from .encryption import Encryption
@@ -79,11 +80,11 @@ def init():
         try:
             choice = prompt("\nSelect a key number (or enter key ID): ")
             if choice.isdigit() and 1 <= int(choice) <= len(keys):
-                selected_key = keys[int(choice) - 1]['keyid']
+                selected_key = keys[int(choice) - 1]["keyid"]
                 break
             else:
                 # User entered key ID directly
-                if any(choice in key['keyid'] for key in keys):
+                if any(choice in key["keyid"] for key in keys):
                     selected_key = choice
                     break
                 console.print("[red]Invalid selection. Try again.[/red]")
@@ -91,7 +92,7 @@ def init():
             console.print("\n[yellow]Setup cancelled.[/yellow]")
             sys.exit(0)
 
-    cfg.set('gpg_key', selected_key)
+    cfg.set("gpg_key", selected_key)
     console.print(f"[green]✓[/green] GPG key set: {selected_key}")
 
     # Test encryption/decryption
@@ -100,7 +101,8 @@ def init():
         enc_test = Encryption(selected_key)
         test_content = "Test note content"
         import tempfile
-        with tempfile.NamedTemporaryFile(suffix='.gpg', delete=False) as tmp:
+
+        with tempfile.NamedTemporaryFile(suffix=".gpg", delete=False) as tmp:
             tmp_path = Path(tmp.name)
 
         enc_test.encrypt(test_content, tmp_path)
@@ -122,8 +124,9 @@ def init():
 
     # Detect available editors
     import shutil
+
     available_editors = []
-    for editor in ['vim', 'vi', 'nano', 'emacs', 'code', 'nvim']:
+    for editor in ["vim", "vi", "nano", "emacs", "code", "nvim"]:
         if shutil.which(editor):
             available_editors.append(editor)
 
@@ -131,10 +134,10 @@ def init():
         console.print(f"Available editors: {', '.join(available_editors)}")
         default_editor = available_editors[0]  # Use first available
     else:
-        default_editor = cfg.get('editor', 'nano')
+        default_editor = cfg.get("editor", "nano")
 
     editor = prompt(f"Text editor [{default_editor}]: ") or default_editor
-    cfg.set('editor', editor)
+    cfg.set("editor", editor)
     console.print(f"[green]✓[/green] Editor set to: {editor}")
 
     # Step 3: Git remote (optional)
@@ -145,7 +148,7 @@ def init():
 
     git_remote = prompt("Git remote URL [skip]: ").strip()
     if git_remote:
-        cfg.set('git_remote', git_remote)
+        cfg.set("git_remote", git_remote)
         console.print("[green]✓[/green] Git remote set")
 
         # Initialize Git repo
@@ -156,32 +159,35 @@ def init():
         except Exception as e:
             console.print(f"[yellow]⚠[/yellow] Warning: Could not initialize Git: {e}")
     else:
-        console.print("[yellow]⚠[/yellow] Git sync skipped (you can set it later with: notes config --git-remote URL)")
+        console.print(
+            "[yellow]⚠[/yellow] Git sync skipped (you can set it later with: notes config --git-remote URL)"
+        )
 
     # Step 4: Final settings
     console.print("\n[bold]Step 4: Additional Settings[/bold]")
 
     auto_sync_input = prompt("Enable auto-sync after each change? [Y/n]: ").lower()
-    auto_sync = auto_sync_input != 'n'
-    cfg.set('auto_sync', auto_sync)
+    auto_sync = auto_sync_input != "n"
+    cfg.set("auto_sync", auto_sync)
 
     auto_tag_input = prompt("Enable automatic tag generation? [Y/n]: ").lower()
-    auto_tag = auto_tag_input != 'n'
-    cfg.set('auto_tag', auto_tag)
+    auto_tag = auto_tag_input != "n"
+    cfg.set("auto_tag", auto_tag)
 
     # Create directories
     cfg.ensure_dirs()
 
     # Summary
-    console.print("\n" + "="*60)
-    console.print(Panel.fit(
-        f"""[green]✓ Setup Complete![/green]
+    console.print("\n" + "=" * 60)
+    console.print(
+        Panel.fit(
+            f"""[green]✓ Setup Complete![/green]
 
 GPG Key: {selected_key}
 Editor: {editor}
-Git Remote: {git_remote or '[dim]not configured[/dim]'}
-Auto-sync: {'[green]enabled[/green]' if auto_sync else '[red]disabled[/red]'}
-Auto-tag: {'[green]enabled[/green]' if auto_tag else '[red]disabled[/red]'}
+Git Remote: {git_remote or "[dim]not configured[/dim]"}
+Auto-sync: {"[green]enabled[/green]" if auto_sync else "[red]disabled[/red]"}
+Auto-tag: {"[green]enabled[/green]" if auto_tag else "[red]disabled[/red]"}
 
 Notes directory: {cfg.notes_dir}
 Config file: {cfg.config_file}
@@ -191,19 +197,20 @@ You're ready to start! Try:
   [cyan]notes list[/cyan]
   [cyan]notes search "keyword"[/cyan]
 """,
-        title="LalaNotes Ready!"
-    ))
+            title="LalaNotes Ready!",
+        )
+    )
 
 
 @main.command()
-@click.argument('title', required=False)
-@click.option('--tags', '-t', help='Comma-separated tags')
+@click.argument("title", required=False)
+@click.option("--tags", "-t", help="Comma-separated tags")
 def new(title, tags):
     """Create a new note."""
     config = Config()
 
     # Check if GPG key is configured
-    if not config.get('gpg_key'):
+    if not config.get("gpg_key"):
         console.print("[red]Error: GPG key not configured. Run 'notes config' first.[/red]")
         sys.exit(1)
 
@@ -216,7 +223,7 @@ def new(title, tags):
         sys.exit(1)
 
     # Parse tags
-    tag_list = [t.strip() for t in tags.split(',')] if tags else []
+    tag_list = [t.strip() for t in tags.split(",")] if tags else []
 
     # Create note with minimal content
     note = Note(title=title, content="", tags=tag_list)
@@ -230,7 +237,7 @@ def new(title, tags):
         note = storage.edit_note(file_path)
 
         # Auto-tag if enabled
-        if config.get('auto_tag') and not tag_list:
+        if config.get("auto_tag") and not tag_list:
             tagger = AutoTagger()
             auto_tags = tagger.extract_tags(note.content, note.title)
             note.tags = auto_tags
@@ -242,7 +249,7 @@ def new(title, tags):
         index.close()
 
         # Sync if enabled
-        if config.get('auto_sync'):
+        if config.get("auto_sync"):
             sync = GitSync(config)
             sync.sync(f"Add note: {note.title}")
 
@@ -256,8 +263,8 @@ def new(title, tags):
 
 
 @main.command()
-@click.argument('query', required=False)
-@click.option('--tag', '-t', help='Search by tag')
+@click.argument("query", required=False)
+@click.option("--tag", "-t", help="Search by tag")
 def search(query, tag):
     """Search notes."""
     config = Config()
@@ -295,8 +302,8 @@ def search(query, tag):
                 table.add_row(
                     str(i),
                     note.title,
-                    ', '.join(note.tags),
-                    note.modified.strftime('%Y-%m-%d %H:%M')
+                    ", ".join(note.tags),
+                    note.modified.strftime("%Y-%m-%d %H:%M"),
                 )
             except Exception:
                 continue
@@ -308,7 +315,7 @@ def search(query, tag):
 
 
 @main.command()
-@click.argument('query')
+@click.argument("query")
 def edit(query):
     """Edit a note by title or search query."""
     config = Config()
@@ -332,7 +339,7 @@ def edit(query):
         index.add_note(note)
 
         # Sync if enabled
-        if config.get('auto_sync'):
+        if config.get("auto_sync"):
             sync = GitSync(config)
             sync.sync(f"Update note: {note.title}")
 
@@ -407,7 +414,7 @@ def sync():
     """Sync notes with Git remote."""
     config = Config()
 
-    if not config.get('git_remote'):
+    if not config.get("git_remote"):
         console.print("[red]Error: Git remote not configured. Run 'notes config' first.[/red]")
         sys.exit(1)
 
@@ -421,41 +428,43 @@ def sync():
 
 
 @main.command()
-@click.option('--editor', help='Set default editor')
-@click.option('--git-remote', help='Set Git remote URL')
-@click.option('--gpg-key', help='Set GPG key ID')
-@click.option('--auto-sync/--no-auto-sync', default=None, help='Enable/disable auto-sync')
-@click.option('--auto-tag/--no-auto-tag', default=None, help='Enable/disable auto-tagging')
-@click.option('--show', is_flag=True, help='Show current configuration')
+@click.option("--editor", help="Set default editor")
+@click.option("--git-remote", help="Set Git remote URL")
+@click.option("--gpg-key", help="Set GPG key ID")
+@click.option("--auto-sync/--no-auto-sync", default=None, help="Enable/disable auto-sync")
+@click.option("--auto-tag/--no-auto-tag", default=None, help="Enable/disable auto-tagging")
+@click.option("--show", is_flag=True, help="Show current configuration")
 def config(editor, git_remote, gpg_key, auto_sync, auto_tag, show):
     """Configure LalaNotes."""
     cfg = Config()
 
     if show:
         # Display current config
-        console.print(Panel.fit(
-            f"""[cyan]Configuration[/cyan]
+        console.print(
+            Panel.fit(
+                f"""[cyan]Configuration[/cyan]
 
-Editor: {cfg.get('editor')}
-Git Remote: {cfg.get('git_remote') or '[dim]not configured[/dim]'}
-GPG Key: {cfg.get('gpg_key') or '[dim]not configured[/dim]'}
-Auto-sync: {'[green]enabled[/green]' if cfg.get('auto_sync') else '[red]disabled[/red]'}
-Auto-tag: {'[green]enabled[/green]' if cfg.get('auto_tag') else '[red]disabled[/red]'}
+Editor: {cfg.get("editor")}
+Git Remote: {cfg.get("git_remote") or "[dim]not configured[/dim]"}
+GPG Key: {cfg.get("gpg_key") or "[dim]not configured[/dim]"}
+Auto-sync: {"[green]enabled[/green]" if cfg.get("auto_sync") else "[red]disabled[/red]"}
+Auto-tag: {"[green]enabled[/green]" if cfg.get("auto_tag") else "[red]disabled[/red]"}
 
 Config file: {cfg.config_file}
 Notes directory: {cfg.notes_dir}
 """,
-            title="LalaNotes Configuration"
-        ))
+                title="LalaNotes Configuration",
+            )
+        )
         return
 
     # Update config values
     if editor:
-        cfg.set('editor', editor)
+        cfg.set("editor", editor)
         console.print(f"[green]✓[/green] Editor set to: {editor}")
 
     if git_remote:
-        cfg.set('git_remote', git_remote)
+        cfg.set("git_remote", git_remote)
         console.print(f"[green]✓[/green] Git remote set to: {git_remote}")
 
         # Initialize repo with remote
@@ -465,25 +474,26 @@ Notes directory: {cfg.notes_dir}
     if gpg_key:
         # Verify key exists
         from .encryption import Encryption
+
         enc = Encryption()
         keys = enc.list_keys()
 
-        if not any(gpg_key in key['keyid'] or gpg_key in key['uids'][0] for key in keys):
+        if not any(gpg_key in key["keyid"] or gpg_key in key["uids"][0] for key in keys):
             console.print(f"[red]Warning: GPG key '{gpg_key}' not found in keyring[/red]")
             console.print("Available keys:")
             for key in keys:
                 console.print(f"  - {key['keyid']}: {key['uids'][0]}")
 
-        cfg.set('gpg_key', gpg_key)
+        cfg.set("gpg_key", gpg_key)
         console.print(f"[green]✓[/green] GPG key set to: {gpg_key}")
 
     if auto_sync is not None:
-        cfg.set('auto_sync', auto_sync)
+        cfg.set("auto_sync", auto_sync)
         status = "enabled" if auto_sync else "disabled"
         console.print(f"[green]✓[/green] Auto-sync {status}")
 
     if auto_tag is not None:
-        cfg.set('auto_tag', auto_tag)
+        cfg.set("auto_tag", auto_tag)
         status = "enabled" if auto_tag else "disabled"
         console.print(f"[green]✓[/green] Auto-tagging {status}")
 
@@ -515,20 +525,22 @@ def reindex():
 
 def interactive_mode():
     """Interactive mode with fuzzy search."""
-    console.print(Panel.fit(
-        "[cyan]LalaNotes[/cyan] - Interactive Mode\n\n"
-        "Type to search, or use commands:\n"
-        "  [green]new[/green] - Create new note\n"
-        "  [green]list[/green] - List all notes\n"
-        "  [green]tags[/green] - Show all tags\n"
-        "  [green]sync[/green] - Sync with Git\n"
-        "  [green]config[/green] - Configuration\n"
-        "  [green]exit[/green] - Exit",
-        title="Welcome"
-    ))
+    console.print(
+        Panel.fit(
+            "[cyan]LalaNotes[/cyan] - Interactive Mode\n\n"
+            "Type to search, or use commands:\n"
+            "  [green]new[/green] - Create new note\n"
+            "  [green]list[/green] - List all notes\n"
+            "  [green]tags[/green] - Show all tags\n"
+            "  [green]sync[/green] - Sync with Git\n"
+            "  [green]config[/green] - Configuration\n"
+            "  [green]exit[/green] - Exit",
+            title="Welcome",
+        )
+    )
 
     config = Config()
-    commands = WordCompleter(['new', 'list', 'tags', 'sync', 'config', 'exit'])
+    commands = WordCompleter(["new", "list", "tags", "sync", "config", "exit"])
 
     while True:
         try:
@@ -537,22 +549,22 @@ def interactive_mode():
             if not user_input:
                 continue
 
-            if user_input == 'exit':
+            if user_input == "exit":
                 break
-            elif user_input == 'new':
+            elif user_input == "new":
                 ctx = click.Context(new)
                 ctx.invoke(new)
-            elif user_input == 'list':
+            elif user_input == "list":
                 ctx = click.Context(list)
                 ctx.invoke(list)
-            elif user_input == 'tags':
+            elif user_input == "tags":
                 ctx = click.Context(tags)
                 ctx.invoke(tags)
-            elif user_input == 'sync':
+            elif user_input == "sync":
                 ctx = click.Context(sync)
                 ctx.invoke(sync)
-            elif user_input == 'config':
-                ctx = click.Context(config, obj={'show': True})
+            elif user_input == "config":
+                ctx = click.Context(config, obj={"show": True})
                 ctx.invoke(config, show=True)
             else:
                 # Treat as search query
@@ -567,5 +579,5 @@ def interactive_mode():
     console.print("\n[cyan]Goodbye![/cyan]")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

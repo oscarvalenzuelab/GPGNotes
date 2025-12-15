@@ -17,7 +17,7 @@ class Storage:
         """Initialize storage."""
         self.config = config
         self.notes_dir = config.notes_dir
-        self.encryption = Encryption(config.get('gpg_key'))
+        self.encryption = Encryption(config.get("gpg_key"))
         self.config.ensure_dirs()
 
     def save_note(self, note: Note) -> Path:
@@ -56,9 +56,7 @@ class Storage:
 
         # Find all .gpg files
         return sorted(
-            self.notes_dir.rglob("*.md.gpg"),
-            key=lambda p: p.stat().st_mtime,
-            reverse=True
+            self.notes_dir.rglob("*.md.gpg"), key=lambda p: p.stat().st_mtime, reverse=True
         )
 
     def edit_note(self, file_path: Path) -> Note:
@@ -68,7 +66,7 @@ class Storage:
 
         try:
             # Open in editor
-            editor = self.config.get('editor', 'nano')
+            editor = self.config.get("editor", "nano")
             subprocess.run([editor, str(temp_path)], check=True)
 
             # Re-encrypt
@@ -96,9 +94,11 @@ class Storage:
         for file_path in self.list_notes():
             try:
                 note = self.load_note(file_path)
-                if (query.lower() in note.title.lower() or
-                    query.lower() in note.content.lower() or
-                    any(query.lower() in tag.lower() for tag in note.tags)):
+                if (
+                    query.lower() in note.title.lower()
+                    or query.lower() in note.content.lower()
+                    or any(query.lower() in tag.lower() for tag in note.tags)
+                ):
                     results.append(note)
             except Exception:
                 # Skip files that can't be decrypted

@@ -20,17 +20,12 @@ class Encryption:
         if not self.gpg_key:
             raise ValueError("GPG key not configured")
 
-        encrypted = self.gpg.encrypt(
-            content,
-            self.gpg_key,
-            always_trust=True,
-            armor=False
-        )
+        encrypted = self.gpg.encrypt(content, self.gpg_key, always_trust=True, armor=False)
 
         if not encrypted.ok:
             raise RuntimeError(f"Encryption failed: {encrypted.stderr}")
 
-        with open(output_path, 'wb') as f:
+        with open(output_path, "wb") as f:
             f.write(encrypted.data)
 
         return True
@@ -40,7 +35,7 @@ class Encryption:
         if not self.gpg_key:
             raise ValueError("GPG key not configured")
 
-        with open(input_path, 'rb') as f:
+        with open(input_path, "rb") as f:
             decrypted = self.gpg.decrypt_file(f)
 
         if not decrypted.ok:
@@ -57,8 +52,8 @@ class Encryption:
         content = self.decrypt(input_path)
 
         # Create temp file with .md extension for proper editor syntax highlighting
-        temp_fd, temp_path = tempfile.mkstemp(suffix='.md')
-        with open(temp_path, 'w') as f:
+        temp_fd, temp_path = tempfile.mkstemp(suffix=".md")
+        with open(temp_path, "w") as f:
             f.write(content)
 
         return Path(temp_path)

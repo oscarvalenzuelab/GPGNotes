@@ -30,10 +30,10 @@ class GitSync:
                 gitignore_path.write_text("*.tmp\n.DS_Store\n")
 
             # Set remote if configured
-            remote_url = self.config.get('git_remote')
+            remote_url = self.config.get("git_remote")
             if remote_url:
                 try:
-                    self.repo.create_remote('origin', remote_url)
+                    self.repo.create_remote("origin", remote_url)
                 except git.CommandError:
                     # Remote already exists
                     pass
@@ -51,7 +51,7 @@ class GitSync:
 
         try:
             # Add all changes
-            self.repo.index.add('*')
+            self.repo.index.add("*")
 
             # Check if there are changes to commit
             if not self.repo.index.diff("HEAD"):
@@ -93,7 +93,7 @@ class GitSync:
 
     def sync(self, message: str = "Update notes") -> bool:
         """Full sync: pull, commit, push."""
-        if not self.config.get('auto_sync'):
+        if not self.config.get("auto_sync"):
             return False
 
         self.init_repo()

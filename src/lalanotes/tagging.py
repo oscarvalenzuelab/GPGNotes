@@ -13,17 +13,115 @@ class AutoTagger:
 
     # Common English stop words
     STOP_WORDS = {
-        'the', 'be', 'to', 'of', 'and', 'a', 'in', 'that', 'have', 'i',
-        'it', 'for', 'not', 'on', 'with', 'he', 'as', 'you', 'do', 'at',
-        'this', 'but', 'his', 'by', 'from', 'they', 'we', 'say', 'her', 'she',
-        'or', 'an', 'will', 'my', 'one', 'all', 'would', 'there', 'their',
-        'what', 'so', 'up', 'out', 'if', 'about', 'who', 'get', 'which', 'go',
-        'me', 'when', 'make', 'can', 'like', 'time', 'no', 'just', 'him', 'know',
-        'take', 'people', 'into', 'year', 'your', 'good', 'some', 'could', 'them',
-        'see', 'other', 'than', 'then', 'now', 'look', 'only', 'come', 'its', 'over',
-        'think', 'also', 'back', 'after', 'use', 'two', 'how', 'our', 'work', 'first',
-        'well', 'way', 'even', 'new', 'want', 'because', 'any', 'these', 'give', 'day',
-        'most', 'us', 'is', 'was', 'are', 'been', 'has', 'had', 'were', 'said', 'did',
+        "the",
+        "be",
+        "to",
+        "of",
+        "and",
+        "a",
+        "in",
+        "that",
+        "have",
+        "i",
+        "it",
+        "for",
+        "not",
+        "on",
+        "with",
+        "he",
+        "as",
+        "you",
+        "do",
+        "at",
+        "this",
+        "but",
+        "his",
+        "by",
+        "from",
+        "they",
+        "we",
+        "say",
+        "her",
+        "she",
+        "or",
+        "an",
+        "will",
+        "my",
+        "one",
+        "all",
+        "would",
+        "there",
+        "their",
+        "what",
+        "so",
+        "up",
+        "out",
+        "if",
+        "about",
+        "who",
+        "get",
+        "which",
+        "go",
+        "me",
+        "when",
+        "make",
+        "can",
+        "like",
+        "time",
+        "no",
+        "just",
+        "him",
+        "know",
+        "take",
+        "people",
+        "into",
+        "year",
+        "your",
+        "good",
+        "some",
+        "could",
+        "them",
+        "see",
+        "other",
+        "than",
+        "then",
+        "now",
+        "look",
+        "only",
+        "come",
+        "its",
+        "over",
+        "think",
+        "also",
+        "back",
+        "after",
+        "use",
+        "two",
+        "how",
+        "our",
+        "work",
+        "first",
+        "well",
+        "way",
+        "even",
+        "new",
+        "want",
+        "because",
+        "any",
+        "these",
+        "give",
+        "day",
+        "most",
+        "us",
+        "is",
+        "was",
+        "are",
+        "been",
+        "has",
+        "had",
+        "were",
+        "said",
+        "did",
     }
 
     def __init__(self, max_tags: int = 5, min_word_length: int = 3):
@@ -54,7 +152,7 @@ class AutoTagger:
         # Use simple frequency-based extraction
         tags = self._extract_by_frequency(words)
 
-        return tags[:self.max_tags]
+        return tags[: self.max_tags]
 
     def _tokenize(self, text: str) -> List[str]:
         """Tokenize and clean text."""
@@ -62,13 +160,10 @@ class AutoTagger:
         text = text.lower()
 
         # Remove special characters and keep only words
-        words = re.findall(r'\b[a-z]+\b', text)
+        words = re.findall(r"\b[a-z]+\b", text)
 
         # Filter out stop words and short words
-        words = [
-            w for w in words
-            if w not in self.STOP_WORDS and len(w) >= self.min_word_length
-        ]
+        words = [w for w in words if w not in self.STOP_WORDS and len(w) >= self.min_word_length]
 
         return words
 
@@ -86,7 +181,7 @@ class AutoTagger:
         # If we don't have enough tags, add some single-occurrence words
         if len(tags) < self.max_tags:
             single_words = [word for word, count in most_common if count == 1]
-            tags.extend(single_words[:self.max_tags - len(tags)])
+            tags.extend(single_words[: self.max_tags - len(tags)])
 
         return tags
 
@@ -116,7 +211,7 @@ class AutoTagger:
             max_features=100,
             stop_words=list(self.STOP_WORDS),
             min_df=1,
-            ngram_range=(1, 2)  # Include bigrams
+            ngram_range=(1, 2),  # Include bigrams
         )
 
         try:
@@ -130,8 +225,8 @@ class AutoTagger:
             scores = tfidf_matrix[0].toarray()[0]
 
             # Get top scoring terms
-            top_indices = np.argsort(scores)[::-1][:self.max_tags]
-            tags = [feature_names[i].replace(' ', '-') for i in top_indices if scores[i] > 0]
+            top_indices = np.argsort(scores)[::-1][: self.max_tags]
+            tags = [feature_names[i].replace(" ", "-") for i in top_indices if scores[i] > 0]
 
             return tags
 
