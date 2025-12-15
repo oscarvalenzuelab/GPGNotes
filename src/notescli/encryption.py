@@ -1,0 +1,70 @@
+"""GPG encryption/decryption for notes."""
+
+import gnupg
+import tempfile
+from pathlib import Path
+from typing import Optional
+
+
+class Encryption:
+    """Handles GPG encryption and decryption of notes."""
+
+    def __init__(self, gpg_key: Optional[str] = None):
+        """Initialize encryption with GPG key."""
+        self.gpg = gnupg.GPG()
+        self.gpg_key = gpg_key
+
+    def encrypt(self, content: str, output_path: Path) -> bool:
+        """Encrypt content and write to file."""
+        if not self.gpg_key:
+            raise ValueError("GPG key not configured")
+
+        encrypted = self.gpg.encrypt(
+            content,
+            self.gpg_key,
+            always_trust=True,
+            armor=False
+        )
+
+        if not encrypted.ok:
+            raise RuntimeError(f"Encryption failed: {encrypted.stderr}")
+
+        with open(output_path, 'wb') as f:
+            f.write(encrypted.data)
+
+        return True
+
+    def decrypt(self, input_path: Path) -> str:
+        """Decrypt file and return content."""
+        if not self.gpg_key:
+            raise ValueError("GPG key not configured")
+
+        with open(input_path, 'rb') as f:
+            decrypted = self.gpg.decrypt_file(f)
+
+        if not decrypted.ok:
+            raise RuntimeError(f"Decryption failed: {decrypted.stderr}")
+
+        return str(decrypted)
+
+    def list_keys(self):
+        """List available GPG keys."""
+        return self.gpg.list_keys()
+
+    def decrypt_to_temp(self, input_path: Path) -> Path:
+        """Decrypt file to temporary location for editing."""
+        content = self.decrypt(input_path)
+
+        # Create temp file with .md extension for proper editor syntax highlighting
+        temp_fd, temp_path = tempfile.mkstemp(suffix='.md')
+        with open(temp_path, 'w') as f:
+            f.write(content)
+
+        return Path(temp_path)
+
+    def encrypt_from_temp(self, temp_path: Path, output_path: Path) -> bool:
+        """Read from temp file and encrypt to output path."""
+        with open(temp_path, 'r') as f:
+            content = f.read()
+
+        return self.encrypt(content, output_path)
