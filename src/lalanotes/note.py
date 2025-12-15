@@ -33,12 +33,21 @@ class Note:
         """Create note from markdown content with frontmatter."""
         post = frontmatter.loads(content)
 
+        # Parse dates from ISO format strings if needed
+        created = post.get("created", datetime.now())
+        if isinstance(created, str):
+            created = datetime.fromisoformat(created)
+
+        modified = post.get("modified", datetime.now())
+        if isinstance(modified, str):
+            modified = datetime.fromisoformat(modified)
+
         return cls(
             title=post.get("title", "Untitled"),
             content=post.content,
             tags=post.get("tags", []),
-            created=post.get("created", datetime.now()),
-            modified=post.get("modified", datetime.now()),
+            created=created,
+            modified=modified,
             file_path=file_path,
         )
 
