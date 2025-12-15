@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import List, Optional
 
 import frontmatter
-from slugify import slugify
 
 
 class Note:
@@ -62,10 +61,11 @@ class Note:
         return frontmatter.dumps(post)
 
     def generate_filename(self, date: Optional[datetime] = None) -> str:
-        """Generate filename based on date and title."""
+        """Generate filename based on timestamp."""
         date = date or self.created
-        slug = slugify(self.title)
-        return f"{date.strftime('%Y-%m-%d')}-{slug}.md.gpg"
+        # Use timestamp as ID: YYYYMMDDHHmmss
+        timestamp = date.strftime('%Y%m%d%H%M%S')
+        return f"{timestamp}.md.gpg"
 
     def get_relative_path(self, date: Optional[datetime] = None) -> Path:
         """Get relative path for note (YYYY/MM/filename)."""
@@ -75,6 +75,21 @@ class Note:
         filename = self.generate_filename(date)
 
         return Path(year) / month / filename
+
+    @property
+    def note_id(self) -> str:
+        """Get note ID from filename or created timestamp."""
+        if self.file_path:
+            # Extract ID from filename (remove .md.gpg)
+            return self.file_path.stem.replace('.md', '')
+        # Fallback to timestamp from created date
+        return self.created.strftime('%Y%m%d%H%M%S')
+
+    @staticmethod
+    def extract_id_from_path(file_path: Path) -> str:
+        """Extract note ID from file path."""
+        # Remove .md.gpg extension to get the timestamp ID
+        return file_path.stem.replace('.md', '')
 
     def update_modified(self):
         """Update the modified timestamp."""

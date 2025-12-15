@@ -1,9 +1,10 @@
 """Command-line interface for LalaNotes."""
 
 import atexit
-import subprocess
 import sys
+import threading
 from pathlib import Path
+from typing import Optional
 
 import click
 from prompt_toolkit import prompt
@@ -22,9 +23,98 @@ from .tagging import AutoTagger
 console = Console()
 
 
+def _sync_in_background(config: Config, message: str):
+    """Run git sync in background thread."""
+    def _do_sync():
+        try:
+            sync = GitSync(config)
+            sync.sync(message)
+        except Exception:
+            # Silently fail - don't interrupt user
+            pass
+
+    thread = threading.Thread(target=_do_sync, daemon=True)
+    thread.start()
+
+
+def _find_note(query: str, config: Config) -> Optional[Path]:
+    """Find a note by ID or search query with interactive selection."""
+    storage = Storage(config)
+    index = SearchIndex(config)
+
+    try:
+        # Check if query is a note ID (14 digits)
+        if query.isdigit() and len(query) == 14:
+            try:
+                return storage.find_by_id(query)
+            except FileNotFoundError:
+                console.print(f"[yellow]No note found with ID: {query}[/yellow]")
+                return None
+
+        # Otherwise, search by query
+        results = index.search(query)
+        if not results:
+            console.print(f"[yellow]No notes found matching '{query}'[/yellow]")
+            return None
+
+        # If single result, return it
+        if len(results) == 1:
+            return Path(results[0][0])
+
+        # Multiple results - show interactive selection
+        console.print(f"[yellow]Found {len(results)} notes:[/yellow]\n")
+
+        table = Table(show_header=True)
+        table.add_column("#", style="cyan", width=3)
+        table.add_column("ID", style="cyan", width=14)
+        table.add_column("Title", style="green", width=40)
+        table.add_column("Modified", style="yellow", width=16)
+
+        notes = []
+        for i, result in enumerate(results[:10], 1):
+            try:
+                note = storage.load_note(Path(result[0]))
+                notes.append(note)
+                table.add_row(
+                    str(i),
+                    note.note_id,
+                    note.title[:38] + "..." if len(note.title) > 38 else note.title,
+                    note.modified.strftime("%Y-%m-%d %H:%M"),
+                )
+            except Exception:
+                continue
+
+        console.print(table)
+
+        # Prompt for selection
+        try:
+            choice = prompt("\nSelect note number (or 'c' to cancel): ")
+            if choice.lower() == 'c':
+                console.print("[yellow]Cancelled[/yellow]")
+                return None
+
+            idx = int(choice) - 1
+            if 0 <= idx < len(notes):
+                return notes[idx].file_path
+            else:
+                console.print("[red]Invalid selection[/red]")
+                return None
+        except (ValueError, KeyboardInterrupt, EOFError):
+            console.print("\n[yellow]Cancelled[/yellow]")
+            return None
+
+    finally:
+        index.close()
+
+
 def _background_sync():
     """Background sync and auto-tag function to run on exit."""
     try:
+        # Clear sys.argv to avoid Click parsing issues during exit
+        import sys
+        original_argv = sys.argv[:]
+        sys.argv = [sys.argv[0]] if sys.argv else []
+
         config = Config()
 
         # Auto-tag recent notes if enabled
@@ -62,6 +152,9 @@ def _background_sync():
         if config.get("auto_sync") and config.get("git_remote"):
             sync = GitSync(config)
             sync.sync("Auto-sync on exit")
+
+        # Restore sys.argv
+        sys.argv = original_argv
     except Exception:
         # Silently fail - we're exiting anyway
         pass
@@ -298,10 +391,9 @@ def new(title, tags):
         index.add_note(note)
         index.close()
 
-        # Sync if enabled
+        # Sync if enabled (background)
         if config.get("auto_sync"):
-            sync = GitSync(config)
-            sync.sync(f"Add note: {note.title}")
+            _sync_in_background(config, f"Add note: {note.title}")
 
         console.print(f"[green]✓[/green] Note created: {note.title}")
         if note.tags:
@@ -341,18 +433,26 @@ def search(query, tag):
         # Load and display notes
         storage = Storage(config)
         table = Table(title="Search Results")
-        table.add_column("#", style="cyan")
-        table.add_column("Title", style="green")
-        table.add_column("Tags", style="blue")
-        table.add_column("Modified", style="yellow")
+        table.add_column("ID", style="cyan", width=14)
+        table.add_column("Title", style="green", width=25)
+        table.add_column("Preview", style="white", width=35)
+        table.add_column("Tags", style="blue", width=15)
+        table.add_column("Modified", style="yellow", width=16)
 
-        for i, file_path in enumerate(results[:20], 1):
+        for file_path in results[:20]:
             try:
                 note = storage.load_note(Path(file_path))
+
+                # Create content preview (first 80 chars)
+                preview = note.content.replace("\n", " ").strip()
+                if len(preview) > 80:
+                    preview = preview[:77] + "..."
+
                 table.add_row(
-                    str(i),
-                    note.title,
-                    ", ".join(note.tags),
+                    note.note_id,
+                    note.title[:23] + "..." if len(note.title) > 23 else note.title,
+                    preview,
+                    ", ".join(note.tags[:2]) + ("..." if len(note.tags) > 2 else ""),
                     note.modified.strftime("%Y-%m-%d %H:%M"),
                 )
             except Exception:
@@ -360,27 +460,36 @@ def search(query, tag):
 
         console.print(table)
 
+        if len(results) > 20:
+            console.print(f"\n[dim]Showing 20 of {len(results)} results[/dim]")
+
+        console.print("\n[dim]Tip: Use 'notes view <ID>' to view a note[/dim]")
+
     finally:
         index.close()
 
 
 @main.command()
-@click.argument("query")
-def edit(query):
-    """Edit a note by title or search query."""
+@click.argument("note_id")
+def open(note_id):
+    """Open a note by ID (use 'notes search' to find IDs)."""
     config = Config()
     storage = Storage(config)
     index = SearchIndex(config)
 
     try:
-        # Try to find note
-        results = index.search(query)
-
-        if not results:
-            console.print(f"[yellow]No note found matching '{query}'[/yellow]")
+        # Validate ID format
+        if not (note_id.isdigit() and len(note_id) == 14):
+            console.print(f"[red]Error: Invalid note ID '{note_id}'[/red]")
+            console.print("[yellow]Tip: Use 'notes search <query>' to find note IDs[/yellow]")
             return
 
-        file_path = Path(results[0][0])
+        # Find note by ID
+        try:
+            file_path = storage.find_by_id(note_id)
+        except FileNotFoundError:
+            console.print(f"[red]Error: Note with ID '{note_id}' not found[/red]")
+            return
 
         # Edit note
         note = storage.edit_note(file_path)
@@ -388,15 +497,14 @@ def edit(query):
         # Re-index
         index.add_note(note)
 
-        # Sync if enabled
+        # Sync if enabled (background)
         if config.get("auto_sync"):
-            sync = GitSync(config)
-            sync.sync(f"Update note: {note.title}")
+            _sync_in_background(config, f"Update note: {note.title}")
 
         console.print(f"[green]✓[/green] Note updated: {note.title}")
 
     except Exception as e:
-        console.print(f"[red]Error editing note: {e}[/red]")
+        console.print(f"[red]Error opening note: {e}[/red]")
     finally:
         index.close()
 
@@ -405,27 +513,42 @@ def edit(query):
 def list():
     """List all notes."""
     config = Config()
-    index = SearchIndex(config)
+    storage = Storage(config)
 
     try:
-        results = index.list_all(limit=50)
+        file_paths = storage.list_notes()[:50]
 
-        if not results:
+        if not file_paths:
             console.print("[yellow]No notes found[/yellow]")
             return
 
         table = Table(title="All Notes")
-        table.add_column("#", style="cyan")
-        table.add_column("Title", style="green")
-        table.add_column("Modified", style="yellow")
+        table.add_column("ID", style="cyan", width=14)
+        table.add_column("Title", style="green", width=40)
+        table.add_column("Tags", style="blue", width=20)
+        table.add_column("Modified", style="yellow", width=16)
 
-        for i, (file_path, title, modified) in enumerate(results, 1):
-            table.add_row(str(i), title, modified[:16])
+        for file_path in file_paths:
+            try:
+                note = storage.load_note(file_path)
+                table.add_row(
+                    note.note_id,
+                    note.title[:38] + "..." if len(note.title) > 38 else note.title,
+                    ", ".join(note.tags[:3]),
+                    note.modified.strftime("%Y-%m-%d %H:%M")
+                )
+            except Exception:
+                continue
 
         console.print(table)
 
-    finally:
-        index.close()
+        if len(file_paths) >= 50:
+            console.print("\n[dim]Showing first 50 notes[/dim]")
+
+        console.print("\n[dim]Tip: Use 'notes view <ID>' to view a note[/dim]")
+
+    except Exception as e:
+        console.print(f"[red]Error listing notes: {e}[/red]")
 
 
 @main.command()
@@ -460,6 +583,68 @@ def tags():
 
 
 @main.command()
+@click.argument("note_id")
+@click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
+def delete(note_id, yes):
+    """Delete a note by ID (use 'notes search' to find IDs)."""
+    config = Config()
+    storage = Storage(config)
+    index = SearchIndex(config)
+
+    try:
+        # Validate ID format
+        if not (note_id.isdigit() and len(note_id) == 14):
+            console.print(f"[red]Error: Invalid note ID '{note_id}'[/red]")
+            console.print("[yellow]Tip: Use 'notes search <query>' to find note IDs[/yellow]")
+            return
+
+        # Find note by ID
+        try:
+            file_path = storage.find_by_id(note_id)
+        except FileNotFoundError:
+            console.print(f"[red]Error: Note with ID '{note_id}' not found[/red]")
+            return
+
+        note = storage.load_note(file_path)
+
+        # Show note info
+        console.print(
+            Panel.fit(
+                f"[bold red]Delete Note?[/bold red]\n\n"
+                f"ID: {note.note_id}\n"
+                f"Title: {note.title}\n"
+                f"Modified: {note.modified.strftime('%Y-%m-%d %H:%M')}\n"
+                f"Tags: {', '.join(note.tags) if note.tags else 'none'}",
+                border_style="red",
+            )
+        )
+
+        # Confirm deletion
+        if not yes:
+            confirm = prompt("Type 'yes' to confirm deletion: ")
+            if confirm.lower() != "yes":
+                console.print("[yellow]Deletion cancelled[/yellow]")
+                return
+
+        # Delete file
+        file_path.unlink()
+
+        # Remove from index
+        index.remove_note(str(file_path))
+
+        # Sync if enabled (background)
+        if config.get("auto_sync"):
+            _sync_in_background(config, f"Delete note: {note.title}")
+
+        console.print(f"[green]✓[/green] Note deleted: {note.title}")
+
+    except Exception as e:
+        console.print(f"[red]Error deleting note: {e}[/red]")
+    finally:
+        index.close()
+
+
+@main.command()
 def sync():
     """Sync notes with Git remote."""
     config = Config()
@@ -471,8 +656,11 @@ def sync():
     git_sync = GitSync(config)
 
     with console.status("[bold blue]Syncing..."):
-        if git_sync.sync():
+        result = git_sync.sync()
+        if result:
             console.print("[green]✓[/green] Notes synced successfully")
+        elif result is False:
+            console.print("[yellow]⚠[/yellow] Sync completed with warnings (check for conflicts)")
         else:
             console.print("[yellow]No changes to sync[/yellow]")
 
@@ -573,6 +761,99 @@ def reindex():
     console.print(f"[green]✓[/green] Indexed {len(notes)} notes")
 
 
+@main.command()
+@click.argument("note_id")
+@click.option("--format", "-f", type=click.Choice(["markdown", "text", "html", "json"]), default="markdown", help="Export format")
+@click.option("--output", "-o", help="Output file path")
+def export(note_id, format, output):
+    """Export a note by ID (use 'notes search' to find IDs)."""
+    import json
+
+    config = Config()
+    storage = Storage(config)
+
+    try:
+        # Validate ID format
+        if not (note_id.isdigit() and len(note_id) == 14):
+            console.print(f"[red]Error: Invalid note ID '{note_id}'[/red]")
+            console.print("[yellow]Tip: Use 'notes search <query>' to find note IDs[/yellow]")
+            return
+
+        # Find note by ID
+        try:
+            file_path = storage.find_by_id(note_id)
+        except FileNotFoundError:
+            console.print(f"[red]Error: Note with ID '{note_id}' not found[/red]")
+            return
+
+        note = storage.load_note(file_path)
+        notes_to_export = [note]
+
+        if not notes_to_export:
+            console.print("[yellow]No notes to export[/yellow]")
+            return
+
+        # Generate export content
+        if format == "markdown":
+            content = ""
+            for note in notes_to_export:
+                content += f"# {note.title}\n\n"
+                content += f"**Modified:** {note.modified.strftime('%Y-%m-%d %H:%M')}\n"
+                content += f"**Tags:** {', '.join(note.tags) if note.tags else 'none'}\n\n"
+                content += f"{note.content}\n\n"
+                content += "---\n\n"
+
+        elif format == "text":
+            content = ""
+            for note in notes_to_export:
+                content += f"{note.title}\n"
+                content += "=" * len(note.title) + "\n\n"
+                content += f"Modified: {note.modified.strftime('%Y-%m-%d %H:%M')}\n"
+                content += f"Tags: {', '.join(note.tags) if note.tags else 'none'}\n\n"
+                content += f"{note.content}\n\n"
+                content += "-" * 60 + "\n\n"
+
+        elif format == "html":
+            content = "<!DOCTYPE html>\n<html>\n<head>\n"
+            content += "<meta charset='utf-8'>\n"
+            content += "<title>LalaNotes Export</title>\n"
+            content += "<style>body { font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; }"
+            content += "h1 { color: #333; } .note { margin-bottom: 40px; border-bottom: 2px solid #eee; padding-bottom: 20px; }"
+            content += ".meta { color: #666; font-size: 0.9em; } .tags { color: #0066cc; }</style>\n"
+            content += "</head>\n<body>\n"
+            for note in notes_to_export:
+                content += "<div class='note'>\n"
+                content += f"<h1>{note.title}</h1>\n"
+                content += f"<div class='meta'>Modified: {note.modified.strftime('%Y-%m-%d %H:%M')}</div>\n"
+                content += f"<div class='tags'>Tags: {', '.join(note.tags) if note.tags else 'none'}</div>\n"
+                content += f"<pre>{note.content}</pre>\n"
+                content += "</div>\n"
+            content += "</body>\n</html>"
+
+        elif format == "json":
+            data = []
+            for note in notes_to_export:
+                data.append({
+                    "title": note.title,
+                    "content": note.content,
+                    "tags": note.tags,
+                    "created": note.created.isoformat() if hasattr(note, 'created') else None,
+                    "modified": note.modified.isoformat(),
+                })
+            content = json.dumps(data, indent=2, ensure_ascii=False)
+
+        # Output to file or stdout
+        if output:
+            output_path = Path(output).expanduser()
+            output_path.write_text(content, encoding="utf-8")
+            console.print(f"[green]✓[/green] Exported {len(notes_to_export)} note(s) to: {output_path}")
+        else:
+            console.print(content)
+
+    except Exception as e:
+        console.print(f"[red]Error exporting notes: {e}[/red]")
+
+
 def interactive_mode():
     """Interactive mode with fuzzy search."""
     console.print(
@@ -581,41 +862,81 @@ def interactive_mode():
             "Type to search, or use commands:\n"
             "  [green]new[/green] - Create new note\n"
             "  [green]list[/green] - List all notes\n"
+            "  [green]open <ID>[/green] - Open a note\n"
+            "  [green]delete <ID>[/green] - Delete a note\n"
             "  [green]tags[/green] - Show all tags\n"
+            "  [green]export <ID>[/green] - Export a note\n"
             "  [green]sync[/green] - Sync with Git\n"
             "  [green]config[/green] - Configuration\n"
+            "  [green]help or ?[/green] - Show help\n"
             "  [green]exit[/green] - Exit",
             title="Welcome",
         )
     )
 
     config = Config()
-    commands = WordCompleter(["new", "list", "tags", "sync", "config", "exit"])
+    commands = WordCompleter(["new", "list", "open", "delete", "tags", "export", "sync", "config", "help", "exit"])
 
     while True:
         try:
-            user_input = prompt("notes> ", completer=commands)
+            user_input = prompt("notes> ", completer=commands).strip()
 
             if not user_input:
                 continue
 
-            if user_input == "exit":
+            # Parse command and arguments
+            parts = user_input.split(maxsplit=1)
+            command = parts[0]
+            args = parts[1] if len(parts) > 1 else None
+
+            if command == "exit":
                 break
-            elif user_input == "new":
+            elif command in ["help", "?"]:
+                # Show help panel
+                console.print(
+                    Panel.fit(
+                        "[cyan]Available Commands:[/cyan]\n\n"
+                        "  [green]new[/green] - Create new note\n"
+                        "  [green]list[/green] - List all notes\n"
+                        "  [green]open <ID>[/green] - Open a note by ID\n"
+                        "  [green]delete <ID>[/green] - Delete a note by ID\n"
+                        "  [green]tags[/green] - Show all tags\n"
+                        "  [green]export <ID>[/green] - Export a note by ID\n"
+                        "  [green]sync[/green] - Sync with Git\n"
+                        "  [green]config[/green] - Configuration\n"
+                        "  [green]help or ?[/green] - Show this help\n"
+                        "  [green]exit[/green] - Exit\n\n"
+                        "[dim]Type text to search for notes and get their IDs[/dim]",
+                        title="LalaNotes Help",
+                    )
+                )
+            elif command == "new":
                 ctx = click.Context(new)
                 ctx.invoke(new)
-            elif user_input == "list":
+            elif command == "list":
                 ctx = click.Context(list)
                 ctx.invoke(list)
-            elif user_input == "tags":
+            elif command == "open" and args:
+                ctx = click.Context(open)
+                ctx.invoke(open, note_id=args)
+            elif command == "delete" and args:
+                ctx = click.Context(delete)
+                ctx.invoke(delete, note_id=args, yes=False)
+            elif command == "tags":
                 ctx = click.Context(tags)
                 ctx.invoke(tags)
-            elif user_input == "sync":
+            elif command == "export" and args:
+                ctx = click.Context(export)
+                ctx.invoke(export, note_id=args, format="markdown", output=None)
+            elif command == "sync":
                 ctx = click.Context(sync)
                 ctx.invoke(sync)
-            elif user_input == "config":
+            elif command == "config":
                 ctx = click.Context(config, obj={"show": True})
                 ctx.invoke(config, show=True)
+            elif command in ["open", "delete", "export"] and not args:
+                console.print(f"[yellow]Usage: {command} <ID>[/yellow]")
+                console.print("[dim]Tip: Use search to find note IDs[/dim]")
             else:
                 # Treat as search query
                 ctx = click.Context(search)

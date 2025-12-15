@@ -87,6 +87,14 @@ class Storage:
             return True
         return False
 
+    def find_by_id(self, note_id: str) -> Path:
+        """Find note file by ID (timestamp)."""
+        # Search for file with this ID in all directories
+        for file_path in self.list_notes():
+            if Note.extract_id_from_path(file_path) == note_id:
+                return file_path
+        raise FileNotFoundError(f"Note with ID {note_id} not found")
+
     def search_notes(self, query: str) -> List[Note]:
         """Simple content search (will be replaced by index search)."""
         results = []

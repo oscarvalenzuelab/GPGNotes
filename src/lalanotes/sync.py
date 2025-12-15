@@ -29,6 +29,14 @@ class GitSync:
             if not gitignore_path.exists():
                 gitignore_path.write_text("*.tmp\n.DS_Store\n")
 
+            # Create initial commit to establish HEAD
+            try:
+                self.repo.index.add([".gitignore"])
+                self.repo.index.commit("Initial commit")
+            except Exception:
+                # If commit fails, repo might already have commits
+                pass
+
             # Set remote if configured
             remote_url = self.config.get("git_remote")
             if remote_url:
@@ -50,12 +58,17 @@ class GitSync:
             self.init_repo()
 
         try:
-            # Add all changes
-            self.repo.index.add("*")
+            # Add all changes including deletions
+            self.repo.git.add(A=True)  # -A flag adds all changes including deletions
 
             # Check if there are changes to commit
-            if not self.repo.index.diff("HEAD"):
-                return False
+            # Handle case where HEAD doesn't exist yet (no commits)
+            try:
+                if not self.repo.index.diff("HEAD"):
+                    return False
+            except git.BadName:
+                # No HEAD yet - this will be the first commit
+                pass
 
             # Commit
             self.repo.index.commit(message)
@@ -71,9 +84,33 @@ class GitSync:
             return False
 
         try:
+            # Get current branch name
+            current_branch = self.repo.active_branch.name
+
+            # Pull with explicit branch and use merge strategy (simpler than rebase)
             origin = self.repo.remotes.origin
-            origin.pull()
+            origin.pull(current_branch)
             return True
+        except git.GitCommandError as e:
+            # Ignore error if remote branch doesn't exist yet (new repo)
+            if "couldn't find remote ref" in str(e).lower():
+                return True
+            # If pull fails due to conflicts, commit local changes and try again
+            if "would be overwritten" in str(e).lower() or "fast-forward" in str(e).lower():
+                try:
+                    # Add and commit any untracked/uncommitted files
+                    self.repo.git.add(A=True)
+                    if self.repo.is_dirty() or self.repo.untracked_files:
+                        self.repo.index.commit("Auto-commit before pull")
+                    # Try pull again with current branch
+                    current_branch = self.repo.active_branch.name
+                    origin.pull(current_branch)
+                    return True
+                except Exception:
+                    print(f"Pull failed: {e}")
+                    return False
+            print(f"Pull failed: {e}")
+            return False
         except Exception as e:
             print(f"Pull failed: {e}")
             return False
@@ -92,18 +129,24 @@ class GitSync:
             return False
 
     def sync(self, message: str = "Update notes") -> bool:
-        """Full sync: pull, commit, push."""
+        """Full sync: commit, pull, push."""
         if not self.config.get("auto_sync"):
             return False
 
         self.init_repo()
 
-        # Pull first
-        if self.has_remote():
-            self.pull()
-
-        # Commit local changes
+        # Commit local changes FIRST (before pull to avoid conflicts)
         committed = self.commit(message)
+
+        # Pull from remote
+        if self.has_remote():
+            pull_success = self.pull()
+            if not pull_success:
+                print("Warning: Pull failed, but local changes are committed")
+                # Still try to push our commits
+                if committed:
+                    return self.push()
+                return False
 
         # Push if we have remote and committed something
         if self.has_remote() and committed:

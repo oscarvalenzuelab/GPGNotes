@@ -81,6 +81,11 @@ class SearchIndex:
 
         Returns list of (file_path, rank) tuples.
         """
+        # Sanitize query for FTS5 by escaping special characters
+        # Wrap in quotes to make it a phrase search and avoid syntax errors
+        sanitized_query = query.replace('"', '""')  # Escape quotes
+        fts_query = f'"{sanitized_query}"'
+
         cursor = self.conn.execute(
             """
             SELECT file_path, rank
@@ -89,7 +94,7 @@ class SearchIndex:
             ORDER BY rank
             LIMIT ?
         """,
-            (query, limit),
+            (fts_query, limit),
         )
 
         return [(row["file_path"], row["rank"]) for row in cursor]
