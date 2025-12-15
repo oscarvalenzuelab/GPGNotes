@@ -26,9 +26,160 @@ console = Console()
 @click.version_option(version="0.1.0")
 def main(ctx):
     """NotesCLI - Encrypted note-taking with Git sync."""
+    # Check if this is first run (except for init and config commands)
+    if ctx.invoked_subcommand not in ['init', 'config', None]:
+        config = Config()
+        if not config.is_configured():
+            console.print("[yellow]⚠ NotesCLI is not configured yet.[/yellow]")
+            console.print("Run [cyan]notes init[/cyan] to set up your configuration.\n")
+            sys.exit(1)
+
     if ctx.invoked_subcommand is None:
-        # Interactive mode
+        # Interactive mode - check config first
+        config = Config()
+        if not config.is_configured():
+            console.print("[yellow]⚠ NotesCLI is not configured yet.[/yellow]")
+            console.print("Let's set it up now!\n")
+            ctx.invoke(init)
+            return
         interactive_mode()
+
+
+@main.command()
+def init():
+    """Initialize NotesCLI with interactive setup."""
+    console.print(Panel.fit(
+        "[cyan]Welcome to NotesCLI![/cyan]\n\n"
+        "Let's set up your encrypted note-taking environment.\n"
+        "You'll need a GPG key for encryption.",
+        title="Initial Setup"
+    ))
+
+    cfg = Config()
+    from .encryption import Encryption
+
+    # Step 1: List and select GPG key
+    console.print("\n[bold]Step 1: GPG Key Setup[/bold]")
+    enc = Encryption()
+    keys = enc.list_keys()
+
+    if not keys:
+        console.print("[red]✗ No GPG keys found![/red]")
+        console.print("\nYou need to create a GPG key first:")
+        console.print("  [cyan]gpg --full-generate-key[/cyan]\n")
+        console.print("Then run [cyan]notes init[/cyan] again.")
+        sys.exit(1)
+
+    console.print(f"\n[green]Found {len(keys)} GPG key(s):[/green]")
+    for i, key in enumerate(keys, 1):
+        console.print(f"  {i}. {key['keyid']}: {key['uids'][0]}")
+
+    # Ask user to select a key
+    while True:
+        try:
+            choice = prompt("\nSelect a key number (or enter key ID): ")
+            if choice.isdigit() and 1 <= int(choice) <= len(keys):
+                selected_key = keys[int(choice) - 1]['keyid']
+                break
+            else:
+                # User entered key ID directly
+                if any(choice in key['keyid'] for key in keys):
+                    selected_key = choice
+                    break
+                console.print("[red]Invalid selection. Try again.[/red]")
+        except (KeyboardInterrupt, EOFError):
+            console.print("\n[yellow]Setup cancelled.[/yellow]")
+            sys.exit(0)
+
+    cfg.set('gpg_key', selected_key)
+    console.print(f"[green]✓[/green] GPG key set: {selected_key}")
+
+    # Test encryption/decryption
+    console.print("\n[bold]Testing encryption...[/bold]")
+    try:
+        enc_test = Encryption(selected_key)
+        test_content = "Test note content"
+        import tempfile
+        with tempfile.NamedTemporaryFile(suffix='.gpg', delete=False) as tmp:
+            tmp_path = Path(tmp.name)
+
+        enc_test.encrypt(test_content, tmp_path)
+        decrypted = enc_test.decrypt(tmp_path)
+        tmp_path.unlink()
+
+        if decrypted == test_content:
+            console.print("[green]✓[/green] Encryption test passed!")
+        else:
+            console.print("[red]✗[/red] Encryption test failed!")
+            sys.exit(1)
+    except Exception as e:
+        console.print(f"[red]✗[/red] Encryption test failed: {e}")
+        console.print("\nMake sure you can access your GPG key.")
+        sys.exit(1)
+
+    # Step 2: Editor selection
+    console.print("\n[bold]Step 2: Editor Selection[/bold]")
+    default_editor = cfg.get('editor', 'nano')
+    editor = prompt(f"Text editor [{default_editor}]: ") or default_editor
+    cfg.set('editor', editor)
+    console.print(f"[green]✓[/green] Editor set to: {editor}")
+
+    # Step 3: Git remote (optional)
+    console.print("\n[bold]Step 3: Git Sync (Optional)[/bold]")
+    console.print("Enter your private Git repository URL for syncing notes.")
+    console.print("Example: git@github.com:username/notes.git")
+    console.print("Leave empty to skip for now.\n")
+
+    git_remote = prompt("Git remote URL [skip]: ").strip()
+    if git_remote:
+        cfg.set('git_remote', git_remote)
+        console.print(f"[green]✓[/green] Git remote set")
+
+        # Initialize Git repo
+        try:
+            sync = GitSync(cfg)
+            sync.init_repo()
+            console.print("[green]✓[/green] Git repository initialized")
+        except Exception as e:
+            console.print(f"[yellow]⚠[/yellow] Warning: Could not initialize Git: {e}")
+    else:
+        console.print("[yellow]⚠[/yellow] Git sync skipped (you can set it later with: notes config --git-remote URL)")
+
+    # Step 4: Final settings
+    console.print("\n[bold]Step 4: Additional Settings[/bold]")
+
+    auto_sync_input = prompt("Enable auto-sync after each change? [Y/n]: ").lower()
+    auto_sync = auto_sync_input != 'n'
+    cfg.set('auto_sync', auto_sync)
+
+    auto_tag_input = prompt("Enable automatic tag generation? [Y/n]: ").lower()
+    auto_tag = auto_tag_input != 'n'
+    cfg.set('auto_tag', auto_tag)
+
+    # Create directories
+    cfg.ensure_dirs()
+
+    # Summary
+    console.print("\n" + "="*60)
+    console.print(Panel.fit(
+        f"""[green]✓ Setup Complete![/green]
+
+GPG Key: {selected_key}
+Editor: {editor}
+Git Remote: {git_remote or '[dim]not configured[/dim]'}
+Auto-sync: {'[green]enabled[/green]' if auto_sync else '[red]disabled[/red]'}
+Auto-tag: {'[green]enabled[/green]' if auto_tag else '[red]disabled[/red]'}
+
+Notes directory: {cfg.notes_dir}
+Config file: {cfg.config_file}
+
+You're ready to start! Try:
+  [cyan]notes new "My First Note"[/cyan]
+  [cyan]notes list[/cyan]
+  [cyan]notes search "keyword"[/cyan]
+""",
+        title="NotesCLI Ready!"
+    ))
 
 
 @main.command()
@@ -325,6 +476,64 @@ Notes directory: {cfg.notes_dir}
 
     if not any([editor, git_remote, gpg_key, auto_sync is not None, auto_tag is not None, show]):
         console.print("Use --help to see available options")
+
+
+@main.command()
+@click.argument('query', required=False)
+def spellcheck(query):
+    """Check spelling in notes (requires: pip install notescli[spellcheck])."""
+    config = Config()
+    from .texthelper import TextHelper
+
+    helper = TextHelper()
+
+    if not helper.is_available():
+        console.print("[red]✗ Spell checker not available[/red]")
+        console.print("\nInstall with: [cyan]pip install notescli[spellcheck][/cyan]\n")
+        sys.exit(1)
+
+    storage = Storage(config)
+    index = SearchIndex(config)
+
+    # Get notes to check
+    if query:
+        # Check specific note(s)
+        results = index.search(query)
+        file_paths = [Path(r[0]) for r in results[:5]]
+    else:
+        # Check all notes
+        file_paths = storage.list_notes()
+
+    if not file_paths:
+        console.print("[yellow]No notes found[/yellow]")
+        return
+
+    console.print(f"[cyan]Checking spelling in {len(file_paths)} note(s)...[/cyan]\n")
+
+    total_errors = 0
+    for file_path in file_paths:
+        try:
+            note = storage.load_note(file_path)
+            errors = helper.check_spelling(note.content)
+
+            if errors:
+                console.print(f"\n[yellow]{note.title}[/yellow] ({file_path.name})")
+                for word, suggestions in errors[:10]:  # Show top 10 per note
+                    sugg_str = ", ".join(suggestions[:3])
+                    console.print(f"  • {word} → [dim]{sugg_str}[/dim]")
+                total_errors += len(errors)
+                if len(errors) > 10:
+                    console.print(f"  [dim]... and {len(errors) - 10} more[/dim]")
+
+        except Exception as e:
+            console.print(f"[red]Error checking {file_path.name}: {e}[/red]")
+
+    index.close()
+
+    if total_errors == 0:
+        console.print("\n[green]✓ No spelling errors found![/green]")
+    else:
+        console.print(f"\n[yellow]Found {total_errors} potential spelling error(s)[/yellow]")
 
 
 @main.command()

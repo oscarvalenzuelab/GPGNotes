@@ -56,3 +56,37 @@ class Config:
         """Ensure all necessary directories exist."""
         self.config_dir.mkdir(parents=True, exist_ok=True)
         self.notes_dir.mkdir(parents=True, exist_ok=True)
+
+    def is_configured(self) -> bool:
+        """Check if minimum configuration is set."""
+        return bool(self.get('gpg_key'))
+
+    def is_first_run(self) -> bool:
+        """Check if this is the first run (no config file exists)."""
+        return not self.config_file.exists()
+
+    def validate_gpg_key(self) -> tuple[bool, str]:
+        """
+        Validate that the configured GPG key exists.
+
+        Returns:
+            (is_valid, message) tuple
+        """
+        gpg_key = self.get('gpg_key')
+        if not gpg_key:
+            return False, "No GPG key configured"
+
+        try:
+            from .encryption import Encryption
+            enc = Encryption()
+            keys = enc.list_keys()
+
+            # Check if key exists in keyring
+            for key in keys:
+                if gpg_key in key['keyid'] or any(gpg_key in uid for uid in key['uids']):
+                    return True, f"GPG key found: {key['uids'][0]}"
+
+            return False, f"GPG key '{gpg_key}' not found in keyring"
+
+        except Exception as e:
+            return False, f"Error validating GPG key: {e}"

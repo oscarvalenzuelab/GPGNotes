@@ -40,7 +40,22 @@ pip install -e .
 
 ## Quick Start
 
-### 1. Generate a GPG key (if you don't have one)
+### 1. Run Initial Setup
+
+On first run, NotesCLI will guide you through interactive setup:
+
+```bash
+notes init
+```
+
+This will:
+- Help you select a GPG key (or guide you to create one)
+- Test encryption/decryption
+- Configure your preferred editor
+- Optionally set up Git sync
+- Configure auto-sync and auto-tagging
+
+**Don't have a GPG key?** Create one first:
 
 ```bash
 gpg --full-generate-key
@@ -48,17 +63,7 @@ gpg --full-generate-key
 
 Choose the defaults (RSA, 3072 bits, no expiration). Remember your passphrase!
 
-### 2. Configure NotesCLI
-
-```bash
-notes config --gpg-key YOUR_GPG_KEY_ID
-notes config --editor vim  # or nano, emacs, etc.
-notes config --git-remote git@github.com:yourusername/your-private-repo.git
-```
-
-Find your GPG key ID with: `gpg --list-keys`
-
-### 3. Create your first note
+### 2. Create your first note
 
 ```bash
 notes new "My First Note"
@@ -66,18 +71,13 @@ notes new "My First Note"
 
 This will open your configured editor. Write your note, save, and exit.
 
-### 4. Search your notes
+### 3. Search and manage your notes
 
 ```bash
 notes search "first"
 notes search --tag important
 notes list
-```
-
-### 5. Sync with Git
-
-```bash
-notes sync
+notes sync  # Sync with Git (if configured)
 ```
 
 ## Usage
@@ -107,6 +107,10 @@ notes sync
 # Rebuild search index
 notes reindex
 
+# Check spelling in notes (optional feature)
+notes spellcheck           # Check all notes
+notes spellcheck "query"   # Check specific notes
+
 # Show configuration
 notes config --show
 
@@ -114,6 +118,9 @@ notes config --show
 notes config --editor nano
 notes config --auto-sync
 notes config --no-auto-tag
+
+# Re-run initial setup
+notes init
 ```
 
 ### Interactive Mode
@@ -223,6 +230,32 @@ NotesCLI automatically generates tags using TF-IDF (Term Frequency-Inverse Docum
 - Suggests 3-5 meaningful tags
 
 You can always edit tags manually by editing the note's frontmatter.
+
+## Spell Checking (Optional)
+
+NotesCLI includes optional spell checking support. To enable it:
+
+```bash
+pip install notescli[spellcheck]
+```
+
+Then use the spellcheck command:
+
+```bash
+# Check spelling in all notes
+notes spellcheck
+
+# Check spelling in specific notes
+notes spellcheck "meeting"
+```
+
+The spell checker will:
+- Identify potentially misspelled words
+- Provide suggestions for corrections
+- Ignore markdown syntax and code blocks
+- Skip YAML frontmatter
+
+**Note**: The spell checker uses `pyspellchecker` which downloads dictionaries on first use.
 
 ## Security
 
