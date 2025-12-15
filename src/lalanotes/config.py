@@ -3,7 +3,7 @@
 import json
 import os
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional
 
 
 class Config:
@@ -65,7 +65,7 @@ class Config:
         """Check if this is the first run (no config file exists)."""
         return not self.config_file.exists()
 
-    def validate_gpg_key(self) -> Tuple[bool, str]:
+    def validate_gpg_key(self) -> tuple[bool, str]:
         """
         Validate that the configured GPG key exists.
 
