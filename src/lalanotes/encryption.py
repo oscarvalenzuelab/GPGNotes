@@ -1,5 +1,7 @@
 """GPG encryption/decryption for notes."""
 
+import os
+import subprocess
 import tempfile
 from pathlib import Path
 from typing import Optional
@@ -12,6 +14,15 @@ class Encryption:
 
     def __init__(self, gpg_key: Optional[str] = None):
         """Initialize encryption with GPG key."""
+        # Set GPG_TTY for proper terminal interaction
+        if "GPG_TTY" not in os.environ:
+            try:
+                tty = subprocess.check_output(["tty"], text=True).strip()
+                os.environ["GPG_TTY"] = tty
+            except (subprocess.CalledProcessError, FileNotFoundError):
+                # Not running in a TTY (e.g., in tests)
+                pass
+
         self.gpg = gnupg.GPG()
         self.gpg_key = gpg_key
 
