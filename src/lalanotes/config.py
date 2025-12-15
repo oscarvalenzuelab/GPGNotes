@@ -1,4 +1,4 @@
-"""Configuration management for NoteCLI."""
+"""Configuration management for LalaNotes."""
 
 import json
 import os
@@ -7,9 +7,9 @@ from typing import Optional
 
 
 class Config:
-    """Manages NoteCLI configuration."""
+    """Manages LalaNotes configuration."""
 
-    DEFAULT_CONFIG_DIR = Path.home() / ".notecli"
+    DEFAULT_CONFIG_DIR = Path.home() / ".lalanotes"
     DEFAULT_NOTES_DIR = DEFAULT_CONFIG_DIR / "notes"
     CONFIG_FILE = DEFAULT_CONFIG_DIR / "config.json"
     DB_FILE = DEFAULT_CONFIG_DIR / "notes.db"

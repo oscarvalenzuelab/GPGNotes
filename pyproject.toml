@@ -3,9 +3,9 @@ requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "notescli"
+name = "lalanotes"
 version = "0.1.0"
-description = "A self-contained CLI note-taking tool with encryption, tagging, and Git sync"
+description = "LalaNotes - A self-contained CLI note-taking tool with encryption, tagging, and Git sync"
 readme = "README.md"
 requires-python = ">=3.8"
 license = {text = "Apache-2.0"}
@@ -54,12 +54,12 @@ dev = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/oscarvalenzuelab/notescli"
-"Repository" = "https://github.com/oscarvalenzuelab/notescli"
-"Bug Tracker" = "https://github.com/oscarvalenzuelab/notescli/issues"
+"Homepage" = "https://github.com/oscarvalenzuelab/lalanotes"
+"Repository" = "https://github.com/oscarvalenzuelab/lalanotes"
+"Bug Tracker" = "https://github.com/oscarvalenzuelab/lalanotes/issues"
 
 [project.scripts]
-notes = "notescli.cli:main"
+notes = "lalanotes.cli:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
@@ -88,4 +88,4 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "-v --cov=notescli --cov-report=term-missing"
+addopts = "-v --cov=lalanotes --cov-report=term-missing"

@@ -1,4 +1,4 @@
-# NotesCLI
+# LalaNotes
 
 A self-contained CLI note-taking tool with GPG encryption, automatic tagging, full-text search, and Git synchronization.
 
@@ -27,14 +27,14 @@ A self-contained CLI note-taking tool with GPG encryption, automatic tagging, fu
 ### Install from PyPI (coming soon)
 
 ```bash
-pip install notescli
+pip install lalanotes
 ```
 
 ### Install from source
 
 ```bash
-git clone https://github.com/oscarvalenzuelab/notescli.git
-cd notescli
+git clone https://github.com/oscarvalenzuelab/lalanotes.git
+cd lalanotes
 pip install -e .
 ```
 
@@ -42,7 +42,7 @@ pip install -e .
 
 ### 1. Run Initial Setup
 
-On first run, NotesCLI will guide you through interactive setup:
+On first run, LalaNotes will guide you through interactive setup:
 
 ```bash
 notes init
@@ -138,10 +138,10 @@ In interactive mode, you can:
 
 ## Directory Structure
 
-NotesCLI stores everything in `~/.notecli/`:
+LalaNotes stores everything in `~/.lalanotes/`:
 
 ```
-~/.notecli/
+~/.lalanotes/
 ├── config.json          # Configuration file
 ├── notes.db            # Search index (SQLite)
 ├── .git/               # Git repository
@@ -185,7 +185,7 @@ This is the body of your note in **Markdown** format.
 ## More sections...
 ```
 
-The frontmatter is managed automatically by NotesCLI.
+The frontmatter is managed automatically by LalaNotes.
 
 ## Configuration Options
 
@@ -199,7 +199,7 @@ The frontmatter is managed automatically by NotesCLI.
 
 ## Git Synchronization
 
-NotesCLI uses Git for synchronization:
+LalaNotes uses Git for synchronization:
 
 1. **Auto-commit**: Every change creates a commit
 2. **Smart sync**: Pulls before pushing
@@ -222,7 +222,7 @@ Now every note change will automatically sync with your repository!
 
 ## Auto-Tagging
 
-NotesCLI automatically generates tags using TF-IDF (Term Frequency-Inverse Document Frequency):
+LalaNotes automatically generates tags using TF-IDF (Term Frequency-Inverse Document Frequency):
 
 - Analyzes note title and content
 - Extracts most relevant keywords
@@ -233,10 +233,10 @@ You can always edit tags manually by editing the note's frontmatter.
 
 ## Spell Checking (Optional)
 
-NotesCLI includes optional spell checking support. To enable it:
+LalaNotes includes optional spell checking support. To enable it:
 
 ```bash
-pip install notescli[spellcheck]
+pip install lalanotes[spellcheck]
 ```
 
 Then use the spellcheck command:
@@ -270,8 +270,8 @@ The spell checker will:
 ### Setup development environment
 
 ```bash
-git clone https://github.com/oscarvalenzuelab/notescli.git
-cd notescli
+git clone https://github.com/oscarvalenzuelab/lalanotes.git
+cd lalanotes
 pip install -e ".[dev]"
 ```
 

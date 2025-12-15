@@ -1,4 +1,4 @@
-"""Command-line interface for NotesCLI."""
+"""Command-line interface for LalaNotes."""
 
 import sys
 import click
@@ -25,12 +25,12 @@ console = Console()
 @click.pass_context
 @click.version_option(version="0.1.0")
 def main(ctx):
-    """NotesCLI - Encrypted note-taking with Git sync."""
+    """LalaNotes - Encrypted note-taking with Git sync."""
     # Check if this is first run (except for init and config commands)
     if ctx.invoked_subcommand not in ['init', 'config', None]:
         config = Config()
         if not config.is_configured():
-            console.print("[yellow]⚠ NotesCLI is not configured yet.[/yellow]")
+            console.print("[yellow]⚠ LalaNotes is not configured yet.[/yellow]")
             console.print("Run [cyan]notes init[/cyan] to set up your configuration.\n")
             sys.exit(1)
 
@@ -38,7 +38,7 @@ def main(ctx):
         # Interactive mode - check config first
         config = Config()
         if not config.is_configured():
-            console.print("[yellow]⚠ NotesCLI is not configured yet.[/yellow]")
+            console.print("[yellow]⚠ LalaNotes is not configured yet.[/yellow]")
             console.print("Let's set it up now!\n")
             ctx.invoke(init)
             return
@@ -47,9 +47,9 @@ def main(ctx):
 
 @main.command()
 def init():
-    """Initialize NotesCLI with interactive setup."""
+    """Initialize LalaNotes with interactive setup."""
     console.print(Panel.fit(
-        "[cyan]Welcome to NotesCLI![/cyan]\n\n"
+        "[cyan]Welcome to LalaNotes![/cyan]\n\n"
         "Let's set up your encrypted note-taking environment.\n"
         "You'll need a GPG key for encryption.",
         title="Initial Setup"
@@ -178,7 +178,7 @@ You're ready to start! Try:
   [cyan]notes list[/cyan]
   [cyan]notes search "keyword"[/cyan]
 """,
-        title="NotesCLI Ready!"
+        title="LalaNotes Ready!"
     ))
 
 
@@ -415,7 +415,7 @@ def sync():
 @click.option('--auto-tag/--no-auto-tag', default=None, help='Enable/disable auto-tagging')
 @click.option('--show', is_flag=True, help='Show current configuration')
 def config(editor, git_remote, gpg_key, auto_sync, auto_tag, show):
-    """Configure NotesCLI."""
+    """Configure LalaNotes."""
     cfg = Config()
 
     if show:
@@ -432,7 +432,7 @@ Auto-tag: {'[green]enabled[/green]' if cfg.get('auto_tag') else '[red]disabled[/
 Config file: {cfg.config_file}
 Notes directory: {cfg.notes_dir}
 """,
-            title="NotesCLI Configuration"
+            title="LalaNotes Configuration"
         ))
         return
 
@@ -561,7 +561,7 @@ def reindex():
 def interactive_mode():
     """Interactive mode with fuzzy search."""
     console.print(Panel.fit(
-        "[cyan]NotesCLI[/cyan] - Interactive Mode\n\n"
+        "[cyan]LalaNotes[/cyan] - Interactive Mode\n\n"
         "Type to search, or use commands:\n"
         "  [green]new[/green] - Create new note\n"
         "  [green]list[/green] - List all notes\n"
