@@ -1,5 +1,7 @@
 """Command-line interface for LalaNotes."""
 
+import atexit
+import subprocess
 import sys
 from pathlib import Path
 
@@ -20,11 +22,27 @@ from .tagging import AutoTagger
 console = Console()
 
 
+def _background_sync():
+    """Background sync function to run on exit."""
+    try:
+        config = Config()
+        if config.get("auto_sync") and config.get("git_remote"):
+            # Run sync in background, suppress output
+            sync = GitSync(config)
+            sync.sync("Auto-sync on exit")
+    except Exception:
+        # Silently fail - we're exiting anyway
+        pass
+
+
 @click.group(invoke_without_command=True)
 @click.pass_context
 @click.version_option(version="0.1.0")
 def main(ctx):
     """LalaNotes - Encrypted note-taking with Git sync."""
+    # Register exit handler for background sync
+    atexit.register(_background_sync)
+
     # Check if this is first run (except for init and config commands)
     if ctx.invoked_subcommand not in ["init", "config", None]:
         config = Config()
