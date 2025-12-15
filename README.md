@@ -1,18 +1,23 @@
 # LalaNotes
 
+[![Tests](https://github.com/oscarvalenzuelab/lalanotes/workflows/Tests/badge.svg)](https://github.com/oscarvalenzuelab/lalanotes/actions/workflows/test.yml)
+[![Lint](https://github.com/oscarvalenzuelab/lalanotes/workflows/Lint/badge.svg)](https://github.com/oscarvalenzuelab/lalanotes/actions/workflows/lint.yml)
+[![Python Version](https://img.shields.io/pypi/pyversions/lalanotes)](https://pypi.org/project/lalanotes/)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+
 A self-contained CLI note-taking tool with GPG encryption, automatic tagging, full-text search, and Git synchronization.
 
 ## Features
 
-- 📝 **Markdown Notes** - Write notes in plain markdown with YAML frontmatter
-- 🔒 **GPG Encryption** - Every note is encrypted individually with GPG
-- 🔍 **Full-Text Search** - Fast SQLite FTS5-powered search across all notes
-- 🏷️ **Auto-Tagging** - Intelligent tag generation using TF-IDF
-- 🔄 **Git Sync** - Automatic synchronization with private GitHub repositories
-- 📅 **Date-Based Organization** - Notes organized by year/month automatically
-- 💻 **Cross-Platform** - Works on Linux, macOS, and Windows
-- 🎨 **Rich CLI** - Beautiful terminal interface with interactive mode
-- 🚀 **Self-Contained** - No external dependencies or services required
+- **Markdown Notes** - Write notes in plain markdown with YAML frontmatter
+- **GPG Encryption** - Every note is encrypted individually with GPG
+- **Full-Text Search** - Fast SQLite FTS5-powered search across all notes
+- **Auto-Tagging** - Intelligent tag generation using TF-IDF
+- **Git Sync** - Automatic synchronization with private GitHub repositories
+- **Date-Based Organization** - Notes organized by year/month automatically
+- **Cross-Platform** - Works on Linux, macOS, and Windows
+- **Rich CLI** - Beautiful terminal interface with interactive mode
+- **Self-Contained** - No external dependencies or services required
 
 ## Installation
 
