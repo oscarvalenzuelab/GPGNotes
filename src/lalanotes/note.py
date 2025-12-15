@@ -64,7 +64,7 @@ class Note:
         """Generate filename based on timestamp."""
         date = date or self.created
         # Use timestamp as ID: YYYYMMDDHHmmss
-        timestamp = date.strftime('%Y%m%d%H%M%S')
+        timestamp = date.strftime("%Y%m%d%H%M%S")
         return f"{timestamp}.md.gpg"
 
     def get_relative_path(self, date: Optional[datetime] = None) -> Path:
@@ -81,15 +81,15 @@ class Note:
         """Get note ID from filename or created timestamp."""
         if self.file_path:
             # Extract ID from filename (remove .md.gpg)
-            return self.file_path.stem.replace('.md', '')
+            return self.file_path.stem.replace(".md", "")
         # Fallback to timestamp from created date
-        return self.created.strftime('%Y%m%d%H%M%S')
+        return self.created.strftime("%Y%m%d%H%M%S")
 
     @staticmethod
     def extract_id_from_path(file_path: Path) -> str:
         """Extract note ID from file path."""
         # Remove .md.gpg extension to get the timestamp ID
-        return file_path.stem.replace('.md', '')
+        return file_path.stem.replace(".md", "")
 
     def update_modified(self):
         """Update the modified timestamp."""

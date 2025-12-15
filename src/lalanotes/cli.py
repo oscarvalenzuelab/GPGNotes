@@ -25,6 +25,7 @@ console = Console()
 
 def _sync_in_background(config: Config, message: str):
     """Run git sync in background thread."""
+
     def _do_sync():
         try:
             sync = GitSync(config)
@@ -89,7 +90,7 @@ def _find_note(query: str, config: Config) -> Optional[Path]:
         # Prompt for selection
         try:
             choice = prompt("\nSelect note number (or 'c' to cancel): ")
-            if choice.lower() == 'c':
+            if choice.lower() == "c":
                 console.print("[yellow]Cancelled[/yellow]")
                 return None
 
@@ -112,6 +113,7 @@ def _background_sync():
     try:
         # Clear sys.argv to avoid Click parsing issues during exit
         import sys
+
         original_argv = sys.argv[:]
         sys.argv = [sys.argv[0]] if sys.argv else []
 
@@ -131,10 +133,7 @@ def _background_sync():
                 try:
                     note = storage.load_note(file_path)
                     # If modified in last hour and has no tags or few tags
-                    if (
-                        datetime.now() - note.modified < timedelta(hours=1)
-                        and len(note.tags) < 3
-                    ):
+                    if datetime.now() - note.modified < timedelta(hours=1) and len(note.tags) < 3:
                         # Generate and add tags
                         auto_tags = tagger.extract_tags(note.content, note.title)
                         if auto_tags:
@@ -535,7 +534,7 @@ def list():
                     note.note_id,
                     note.title[:38] + "..." if len(note.title) > 38 else note.title,
                     ", ".join(note.tags[:3]),
-                    note.modified.strftime("%Y-%m-%d %H:%M")
+                    note.modified.strftime("%Y-%m-%d %H:%M"),
                 )
             except Exception:
                 continue
@@ -763,7 +762,13 @@ def reindex():
 
 @main.command()
 @click.argument("note_id")
-@click.option("--format", "-f", type=click.Choice(["markdown", "text", "html", "json"]), default="markdown", help="Export format")
+@click.option(
+    "--format",
+    "-f",
+    type=click.Choice(["markdown", "text", "html", "json"]),
+    default="markdown",
+    help="Export format",
+)
 @click.option("--output", "-o", help="Output file path")
 def export(note_id, format, output):
     """Export a note by ID (use 'notes search' to find IDs)."""
@@ -819,7 +824,9 @@ def export(note_id, format, output):
             content += "<title>LalaNotes Export</title>\n"
             content += "<style>body { font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; }"
             content += "h1 { color: #333; } .note { margin-bottom: 40px; border-bottom: 2px solid #eee; padding-bottom: 20px; }"
-            content += ".meta { color: #666; font-size: 0.9em; } .tags { color: #0066cc; }</style>\n"
+            content += (
+                ".meta { color: #666; font-size: 0.9em; } .tags { color: #0066cc; }</style>\n"
+            )
             content += "</head>\n<body>\n"
             for note in notes_to_export:
                 content += "<div class='note'>\n"
@@ -833,20 +840,24 @@ def export(note_id, format, output):
         elif format == "json":
             data = []
             for note in notes_to_export:
-                data.append({
-                    "title": note.title,
-                    "content": note.content,
-                    "tags": note.tags,
-                    "created": note.created.isoformat() if hasattr(note, 'created') else None,
-                    "modified": note.modified.isoformat(),
-                })
+                data.append(
+                    {
+                        "title": note.title,
+                        "content": note.content,
+                        "tags": note.tags,
+                        "created": note.created.isoformat() if hasattr(note, "created") else None,
+                        "modified": note.modified.isoformat(),
+                    }
+                )
             content = json.dumps(data, indent=2, ensure_ascii=False)
 
         # Output to file or stdout
         if output:
             output_path = Path(output).expanduser()
             output_path.write_text(content, encoding="utf-8")
-            console.print(f"[green]✓[/green] Exported {len(notes_to_export)} note(s) to: {output_path}")
+            console.print(
+                f"[green]✓[/green] Exported {len(notes_to_export)} note(s) to: {output_path}"
+            )
         else:
             console.print(content)
 
@@ -875,7 +886,9 @@ def interactive_mode():
     )
 
     config = Config()
-    commands = WordCompleter(["new", "list", "open", "delete", "tags", "export", "sync", "config", "help", "exit"])
+    commands = WordCompleter(
+        ["new", "list", "open", "delete", "tags", "export", "sync", "config", "help", "exit"]
+    )
 
     while True:
         try:

@@ -57,8 +57,11 @@ def test_note_generate_filename():
     filename = note.generate_filename()
 
     assert filename.endswith(".md.gpg")
-    assert "my-test-note" in filename.lower()
-    assert note.created.strftime('%Y-%m-%d') in filename
+    # Filename should be timestamp-based: YYYYMMDDHHmmss.md.gpg
+    timestamp_part = filename.replace(".md.gpg", "")
+    assert len(timestamp_part) == 14  # YYYYMMDDHHmmss is 14 characters
+    assert timestamp_part.isdigit()
+    assert timestamp_part.startswith(note.created.strftime('%Y%m%d'))
 
 
 def test_note_get_relative_path():
