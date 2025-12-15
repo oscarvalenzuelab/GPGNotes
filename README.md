@@ -112,10 +112,6 @@ notes sync
 # Rebuild search index
 notes reindex
 
-# Check spelling in notes (optional feature)
-notes spellcheck           # Check all notes
-notes spellcheck "query"   # Check specific notes
-
 # Show configuration
 notes config --show
 
@@ -236,31 +232,35 @@ LalaNotes automatically generates tags using TF-IDF (Term Frequency-Inverse Docu
 
 You can always edit tags manually by editing the note's frontmatter.
 
-## Spell Checking (Optional)
+## Spell Checking in Your Editor
 
-LalaNotes includes optional spell checking support. To enable it:
+LalaNotes uses your preferred text editor (vim, nano, etc.) which already have spell checking built-in:
 
-```bash
-pip install lalanotes[spellcheck]
+**Vim/Vi:**
+```vim
+:set spell spelllang=en_us    " Enable spell check
+:set nospell                  " Disable spell check
+z=                            " View suggestions for word under cursor
+]s                            " Jump to next misspelled word
+[s                            " Jump to previous misspelled word
 ```
 
-Then use the spellcheck command:
-
+**Nano:**
 ```bash
-# Check spelling in all notes
-notes spellcheck
-
-# Check spelling in specific notes
-notes spellcheck "meeting"
+nano -S                       " Start nano with spell checking
+Ctrl+T                        " Check spelling while editing
 ```
 
-The spell checker will:
-- Identify potentially misspelled words
-- Provide suggestions for corrections
-- Ignore markdown syntax and code blocks
-- Skip YAML frontmatter
+**Add to your shell profile** to always enable spell checking:
+```bash
+# For vim users (~/.vimrc)
+autocmd FileType markdown setlocal spell spelllang=en_us
 
-**Note**: The spell checker uses `pyspellchecker` which downloads dictionaries on first use.
+# For nano users (~/.nanorc)
+set speller "aspell -c"
+```
+
+No external dependencies needed - the editor you already use has spell checking!
 
 ## Security
 

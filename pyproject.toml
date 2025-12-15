@@ -43,9 +43,6 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-spellcheck = [
-    "pyspellchecker>=0.7.0",
-]
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",

@@ -119,7 +119,20 @@ def init():
 
     # Step 2: Editor selection
     console.print("\n[bold]Step 2: Editor Selection[/bold]")
-    default_editor = cfg.get('editor', 'nano')
+
+    # Detect available editors
+    import shutil
+    available_editors = []
+    for editor in ['vim', 'vi', 'nano', 'emacs', 'code', 'nvim']:
+        if shutil.which(editor):
+            available_editors.append(editor)
+
+    if available_editors:
+        console.print(f"Available editors: {', '.join(available_editors)}")
+        default_editor = available_editors[0]  # Use first available
+    else:
+        default_editor = cfg.get('editor', 'nano')
+
     editor = prompt(f"Text editor [{default_editor}]: ") or default_editor
     cfg.set('editor', editor)
     console.print(f"[green]✓[/green] Editor set to: {editor}")
@@ -476,64 +489,6 @@ Notes directory: {cfg.notes_dir}
 
     if not any([editor, git_remote, gpg_key, auto_sync is not None, auto_tag is not None, show]):
         console.print("Use --help to see available options")
-
-
-@main.command()
-@click.argument('query', required=False)
-def spellcheck(query):
-    """Check spelling in notes (requires: pip install notescli[spellcheck])."""
-    config = Config()
-    from .texthelper import TextHelper
-
-    helper = TextHelper()
-
-    if not helper.is_available():
-        console.print("[red]✗ Spell checker not available[/red]")
-        console.print("\nInstall with: [cyan]pip install notescli[spellcheck][/cyan]\n")
-        sys.exit(1)
-
-    storage = Storage(config)
-    index = SearchIndex(config)
-
-    # Get notes to check
-    if query:
-        # Check specific note(s)
-        results = index.search(query)
-        file_paths = [Path(r[0]) for r in results[:5]]
-    else:
-        # Check all notes
-        file_paths = storage.list_notes()
-
-    if not file_paths:
-        console.print("[yellow]No notes found[/yellow]")
-        return
-
-    console.print(f"[cyan]Checking spelling in {len(file_paths)} note(s)...[/cyan]\n")
-
-    total_errors = 0
-    for file_path in file_paths:
-        try:
-            note = storage.load_note(file_path)
-            errors = helper.check_spelling(note.content)
-
-            if errors:
-                console.print(f"\n[yellow]{note.title}[/yellow] ({file_path.name})")
-                for word, suggestions in errors[:10]:  # Show top 10 per note
-                    sugg_str = ", ".join(suggestions[:3])
-                    console.print(f"  • {word} → [dim]{sugg_str}[/dim]")
-                total_errors += len(errors)
-                if len(errors) > 10:
-                    console.print(f"  [dim]... and {len(errors) - 10} more[/dim]")
-
-        except Exception as e:
-            console.print(f"[red]Error checking {file_path.name}: {e}[/red]")
-
-    index.close()
-
-    if total_errors == 0:
-        console.print("\n[green]✓ No spelling errors found![/green]")
-    else:
-        console.print(f"\n[yellow]Found {total_errors} potential spelling error(s)[/yellow]")
 
 
 @main.command()
