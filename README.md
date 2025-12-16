@@ -105,6 +105,14 @@ notes list
 # Show all tags
 notes tags
 
+# Export a note
+notes export <note-id> --format markdown
+notes export <note-id> --format html -o output.html
+notes export <note-id> --format json
+
+# Delete a note
+notes delete <note-id>
+
 # Sync with Git
 notes sync
 
@@ -294,7 +302,7 @@ ruff format src/
 
 ## Roadmap
 
-- [ ] Export notes to various formats (PDF, HTML, etc.)
+- [ ] PDF export format
 - [ ] Note templates
 - [ ] Attachments support
 - [ ] Mobile companion app
