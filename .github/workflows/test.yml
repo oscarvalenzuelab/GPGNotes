@@ -35,8 +35,11 @@ jobs:
     - name: Install GPG (Windows)
       if: runner.os == 'Windows'
       run: |
-        choco install gnupg -y --timeout 300
-      timeout-minutes: 10
+        # Download and install Gpg4win (lightweight version with just GPG)
+        Invoke-WebRequest -Uri "https://files.gpg4win.org/gpg4win-vanilla-4.3.1.exe" -OutFile "$env:TEMP\gpg4win.exe"
+        Start-Process -FilePath "$env:TEMP\gpg4win.exe" -ArgumentList "/S" -Wait
+        # Add GPG to PATH
+        echo "C:\Program Files (x86)\GnuPG\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
     - name: Install dependencies
       run: |
