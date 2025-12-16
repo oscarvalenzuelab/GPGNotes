@@ -273,29 +273,6 @@ No external dependencies needed - the editor you already use has spell checking!
 - **No cloud service**: No external services or API calls
 - **Passphrase**: Your GPG passphrase protects everything
 
-## Development
-
-### Setup development environment
-
-```bash
-git clone https://github.com/oscarvalenzuelab/gpgnotes.git
-cd gpgnotes
-pip install -e ".[dev]"
-```
-
-### Run tests
-
-```bash
-pytest
-```
-
-### Code formatting
-
-```bash
-ruff check src/
-ruff format src/
-```
-
 ## License
 
 Apache License 2.0 - see [LICENSE](LICENSE) for details.
