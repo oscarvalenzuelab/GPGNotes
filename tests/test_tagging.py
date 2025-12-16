@@ -1,7 +1,7 @@
 """Tests for tagging module."""
 
 import pytest
-from lalanotes.tagging import AutoTagger
+from gpgnotes.tagging import AutoTagger
 
 
 def test_autotagger_initialization():

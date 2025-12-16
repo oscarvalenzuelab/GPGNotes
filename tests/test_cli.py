@@ -2,7 +2,7 @@
 
 import pytest
 from click.testing import CliRunner
-from lalanotes.cli import main
+from gpgnotes.cli import main
 
 
 def test_cli_help():
@@ -27,7 +27,7 @@ def test_cli_version():
 def test_config_show(test_config, monkeypatch):
     """Test config show command."""
     # Mock Config to use test config
-    import lalanotes.cli
+    import gpgnotes.cli
     monkeypatch.setattr(lalanotes.cli, 'Config', lambda: test_config)
 
     runner = CliRunner()

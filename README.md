@@ -1,8 +1,8 @@
-# LalaNotes
+# GPGNotes
 
-[![Tests](https://github.com/oscarvalenzuelab/lalanotes/workflows/Tests/badge.svg)](https://github.com/oscarvalenzuelab/lalanotes/actions/workflows/test.yml)
-[![Lint](https://github.com/oscarvalenzuelab/lalanotes/workflows/Lint/badge.svg)](https://github.com/oscarvalenzuelab/lalanotes/actions/workflows/lint.yml)
-[![Python Version](https://img.shields.io/pypi/pyversions/lalanotes)](https://pypi.org/project/lalanotes/)
+[![Tests](https://github.com/oscarvalenzuelab/gpgnotes/workflows/Tests/badge.svg)](https://github.com/oscarvalenzuelab/gpgnotes/actions/workflows/test.yml)
+[![Lint](https://github.com/oscarvalenzuelab/gpgnotes/workflows/Lint/badge.svg)](https://github.com/oscarvalenzuelab/gpgnotes/actions/workflows/lint.yml)
+[![Python Version](https://img.shields.io/pypi/pyversions/gpgnotes)](https://pypi.org/project/gpgnotes/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
 A self-contained CLI note-taking tool with GPG encryption, automatic tagging, full-text search, and Git synchronization.
@@ -31,14 +31,14 @@ A self-contained CLI note-taking tool with GPG encryption, automatic tagging, fu
 ### Install from PyPI (coming soon)
 
 ```bash
-pip install lalanotes
+pip install gpgnotes
 ```
 
 ### Install from source
 
 ```bash
-git clone https://github.com/oscarvalenzuelab/lalanotes.git
-cd lalanotes
+git clone https://github.com/oscarvalenzuelab/gpgnotes.git
+cd gpgnotes
 pip install -e .
 ```
 
@@ -46,7 +46,7 @@ pip install -e .
 
 ### 1. Run Initial Setup
 
-On first run, LalaNotes will guide you through interactive setup:
+On first run, GPGNotes will guide you through interactive setup:
 
 ```bash
 notes init
@@ -146,10 +146,10 @@ In interactive mode, you can:
 
 ## Directory Structure
 
-LalaNotes stores everything in `~/.lalanotes/`:
+GPGNotes stores everything in `~/.gpgnotes/`:
 
 ```
-~/.lalanotes/
+~/.gpgnotes/
 ├── config.json          # Configuration file
 ├── notes.db            # Search index (SQLite)
 ├── .git/               # Git repository
@@ -193,7 +193,7 @@ This is the body of your note in **Markdown** format.
 ## More sections...
 ```
 
-The frontmatter is managed automatically by LalaNotes.
+The frontmatter is managed automatically by GPGNotes.
 
 ## Configuration Options
 
@@ -207,7 +207,7 @@ The frontmatter is managed automatically by LalaNotes.
 
 ## Git Synchronization
 
-LalaNotes uses Git for synchronization:
+GPGNotes uses Git for synchronization:
 
 1. **Auto-commit**: Every change creates a commit
 2. **Smart sync**: Pulls before pushing
@@ -230,7 +230,7 @@ Now every note change will automatically sync with your repository!
 
 ## Auto-Tagging
 
-LalaNotes automatically generates tags using TF-IDF (Term Frequency-Inverse Document Frequency):
+GPGNotes automatically generates tags using TF-IDF (Term Frequency-Inverse Document Frequency):
 
 - Analyzes note title and content
 - Extracts most relevant keywords
@@ -241,7 +241,7 @@ You can always edit tags manually by editing the note's frontmatter.
 
 ## Spell Checking in Your Editor
 
-LalaNotes uses your preferred text editor (vim, nano, etc.) which already have spell checking built-in:
+GPGNotes uses your preferred text editor (vim, nano, etc.) which already have spell checking built-in:
 
 **Vim/Vi:**
 ```vim
@@ -282,8 +282,8 @@ No external dependencies needed - the editor you already use has spell checking!
 ### Setup development environment
 
 ```bash
-git clone https://github.com/oscarvalenzuelab/lalanotes.git
-cd lalanotes
+git clone https://github.com/oscarvalenzuelab/gpgnotes.git
+cd gpgnotes
 pip install -e ".[dev]"
 ```
 

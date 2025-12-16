@@ -1,4 +1,4 @@
-"""Command-line interface for LalaNotes."""
+"""Command-line interface for GPGNotes."""
 
 import atexit
 import sys
@@ -163,7 +163,7 @@ def _background_sync():
 @click.pass_context
 @click.version_option(version="0.1.0")
 def main(ctx):
-    """LalaNotes - Encrypted note-taking with Git sync."""
+    """GPGNotes - Encrypted note-taking with Git sync."""
     # Register exit handler for background sync
     atexit.register(_background_sync)
 
@@ -171,7 +171,7 @@ def main(ctx):
     if ctx.invoked_subcommand not in ["init", "config", None]:
         config = Config()
         if not config.is_configured():
-            console.print("[yellow]⚠ LalaNotes is not configured yet.[/yellow]")
+            console.print("[yellow]⚠ GPGNotes is not configured yet.[/yellow]")
             console.print("Run [cyan]notes init[/cyan] to set up your configuration.\n")
             sys.exit(1)
 
@@ -179,7 +179,7 @@ def main(ctx):
         # Interactive mode - check config first
         config = Config()
         if not config.is_configured():
-            console.print("[yellow]⚠ LalaNotes is not configured yet.[/yellow]")
+            console.print("[yellow]⚠ GPGNotes is not configured yet.[/yellow]")
             console.print("Let's set it up now!\n")
             ctx.invoke(init)
             return
@@ -188,10 +188,10 @@ def main(ctx):
 
 @main.command()
 def init():
-    """Initialize LalaNotes with interactive setup."""
+    """Initialize GPGNotes with interactive setup."""
     console.print(
         Panel.fit(
-            "[cyan]Welcome to LalaNotes![/cyan]\n\n"
+            "[cyan]Welcome to GPGNotes![/cyan]\n\n"
             "Let's set up your encrypted note-taking environment.\n"
             "You'll need a GPG key for encryption.",
             title="Initial Setup",
@@ -339,7 +339,7 @@ You're ready to start! Try:
   [cyan]notes list[/cyan]
   [cyan]notes search "keyword"[/cyan]
 """,
-            title="LalaNotes Ready!",
+            title="GPGNotes Ready!",
         )
     )
 
@@ -672,7 +672,7 @@ def sync():
 @click.option("--auto-tag/--no-auto-tag", default=None, help="Enable/disable auto-tagging")
 @click.option("--show", is_flag=True, help="Show current configuration")
 def config(editor, git_remote, gpg_key, auto_sync, auto_tag, show):
-    """Configure LalaNotes."""
+    """Configure GPGNotes."""
     cfg = Config()
 
     if show:
@@ -690,7 +690,7 @@ Auto-tag: {"[green]enabled[/green]" if cfg.get("auto_tag") else "[red]disabled[/
 Config file: {cfg.config_file}
 Notes directory: {cfg.notes_dir}
 """,
-                title="LalaNotes Configuration",
+                title="GPGNotes Configuration",
             )
         )
         return
@@ -821,7 +821,7 @@ def export(note_id, format, output):
         elif format == "html":
             content = "<!DOCTYPE html>\n<html>\n<head>\n"
             content += "<meta charset='utf-8'>\n"
-            content += "<title>LalaNotes Export</title>\n"
+            content += "<title>GPGNotes Export</title>\n"
             content += "<style>body { font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; }"
             content += "h1 { color: #333; } .note { margin-bottom: 40px; border-bottom: 2px solid #eee; padding-bottom: 20px; }"
             content += (
@@ -869,7 +869,7 @@ def interactive_mode():
     """Interactive mode with fuzzy search."""
     console.print(
         Panel.fit(
-            "[cyan]LalaNotes[/cyan] - Interactive Mode\n\n"
+            "[cyan]GPGNotes[/cyan] - Interactive Mode\n\n"
             "Type to search, or use commands:\n"
             "  [green]new[/green] - Create new note\n"
             "  [green]list[/green] - List all notes\n"
@@ -920,7 +920,7 @@ def interactive_mode():
                         "  [green]help or ?[/green] - Show this help\n"
                         "  [green]exit[/green] - Exit\n\n"
                         "[dim]Type text to search for notes and get their IDs[/dim]",
-                        title="LalaNotes Help",
+                        title="GPGNotes Help",
                     )
                 )
             elif command == "new":

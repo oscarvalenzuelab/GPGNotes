@@ -3,7 +3,7 @@
 import pytest
 import tempfile
 from pathlib import Path
-from lalanotes.config import Config
+from gpgnotes.config import Config
 
 
 @pytest.fixture

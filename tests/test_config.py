@@ -2,7 +2,7 @@
 
 import pytest
 from pathlib import Path
-from lalanotes.config import Config
+from gpgnotes.config import Config
 
 
 def test_config_initialization(test_config):

@@ -1,4 +1,4 @@
-"""Configuration management for LalaNotes."""
+"""Configuration management for GPGNotes."""
 
 import json
 import os
@@ -7,9 +7,9 @@ from typing import Optional
 
 
 class Config:
-    """Manages LalaNotes configuration."""
+    """Manages GPGNotes configuration."""
 
-    DEFAULT_CONFIG_DIR = Path.home() / ".lalanotes"
+    DEFAULT_CONFIG_DIR = Path.home() / ".gpgnotes"
     DEFAULT_NOTES_DIR = DEFAULT_CONFIG_DIR / "notes"
     CONFIG_FILE = DEFAULT_CONFIG_DIR / "config.json"
     DB_FILE = DEFAULT_CONFIG_DIR / "notes.db"

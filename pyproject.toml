@@ -3,9 +3,9 @@ requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "lalanotes"
+name = "gpgnotes"
 version = "0.1.0"
-description = "LalaNotes - A self-contained CLI note-taking tool with encryption, tagging, and Git sync"
+description = "GPGNotes - A self-contained CLI note-taking tool with GPG encryption, tagging, and Git sync"
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "Apache-2.0"}
@@ -48,12 +48,12 @@ dev = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/oscarvalenzuelab/lalanotes"
-"Repository" = "https://github.com/oscarvalenzuelab/lalanotes"
-"Bug Tracker" = "https://github.com/oscarvalenzuelab/lalanotes/issues"
+"Homepage" = "https://github.com/oscarvalenzuelab/gpgnotes"
+"Repository" = "https://github.com/oscarvalenzuelab/gpgnotes"
+"Bug Tracker" = "https://github.com/oscarvalenzuelab/gpgnotes/issues"
 
 [project.scripts]
-notes = "lalanotes.cli:main"
+notes = "gpgnotes.cli:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
@@ -84,4 +84,4 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "-v --cov=lalanotes --cov-report=term-missing"
+addopts = "-v --cov=gpgnotes --cov-report=term-missing"

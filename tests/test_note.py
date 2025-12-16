@@ -3,7 +3,7 @@
 import pytest
 from datetime import datetime
 from pathlib import Path
-from lalanotes.note import Note
+from gpgnotes.note import Note
 
 
 def test_note_creation():

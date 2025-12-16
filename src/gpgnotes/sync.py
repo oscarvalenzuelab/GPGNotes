@@ -95,6 +95,16 @@ class GitSync:
             # Ignore error if remote branch doesn't exist yet (new repo)
             if "couldn't find remote ref" in str(e).lower():
                 return True
+            # Handle unrelated histories (initial sync from existing remote)
+            if "unrelated histories" in str(e).lower() or "refusing to merge" in str(e).lower():
+                try:
+                    # Pull with --allow-unrelated-histories flag
+                    current_branch = self.repo.active_branch.name
+                    self.repo.git.pull("origin", current_branch, allow_unrelated_histories=True)
+                    return True
+                except Exception as e2:
+                    print(f"Pull with unrelated histories failed: {e2}")
+                    return False
             # If pull fails due to conflicts, commit local changes and try again
             if "would be overwritten" in str(e).lower() or "fast-forward" in str(e).lower():
                 try:
