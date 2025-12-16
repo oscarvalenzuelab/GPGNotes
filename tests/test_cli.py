@@ -11,7 +11,7 @@ def test_cli_help():
     result = runner.invoke(main, ['--help'])
 
     assert result.exit_code == 0
-    assert 'LalaNotes' in result.output
+    assert 'GPGNotes' in result.output
     assert 'Encrypted note-taking' in result.output
 
 
@@ -28,7 +28,7 @@ def test_config_show(test_config, monkeypatch):
     """Test config show command."""
     # Mock Config to use test config
     import gpgnotes.cli
-    monkeypatch.setattr(lalanotes.cli, 'Config', lambda: test_config)
+    monkeypatch.setattr(gpgnotes.cli, 'Config', lambda: test_config)
 
     runner = CliRunner()
     result = runner.invoke(main, ['config', '--show'])
