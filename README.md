@@ -300,16 +300,6 @@ ruff check src/
 ruff format src/
 ```
 
-## Roadmap
-
-- [ ] PDF export format
-- [ ] Note templates
-- [ ] Attachments support
-- [ ] Mobile companion app
-- [ ] Web interface
-- [ ] End-to-end encrypted sync server
-- [ ] Collaborative notes (shared encryption)
-
 ## Contributing
 
 Contributions are welcome! Please:
