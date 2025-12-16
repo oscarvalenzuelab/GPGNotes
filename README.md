@@ -324,21 +324,6 @@ Contributions are welcome! Please:
 
 Apache License 2.0 - see [LICENSE](LICENSE) for details.
 
-## Author
-
-**Oscar Valenzuela B.**
-- Email: oscar.valenzuela.b@gmail.com
-- GitHub: [@oscarvalenzuelab](https://github.com/oscarvalenzuelab)
-
-## Acknowledgments
-
-Inspired by:
-- [Evernote](https://evernote.com/) - For pioneering digital note-taking
-- [Notion](https://notion.so/) - For modern note organization
-- [Standard Notes](https://standardnotes.com/) - For encrypted notes
-- [Obsidian](https://obsidian.md/) - For markdown-based notes
-- [Joplin](https://joplinapp.org/) - For open-source encrypted notes
-
 ---
 
 **Note**: This is an early release (v0.1.0). Expect bugs and breaking changes. Always backup your notes!
