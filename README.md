@@ -1,8 +1,7 @@
 # GPGNotes
 
-[![Tests](https://github.com/oscarvalenzuelab/gpgnotes/workflows/Tests/badge.svg)](https://github.com/oscarvalenzuelab/gpgnotes/actions/workflows/test.yml)
-[![Lint](https://github.com/oscarvalenzuelab/gpgnotes/workflows/Lint/badge.svg)](https://github.com/oscarvalenzuelab/gpgnotes/actions/workflows/lint.yml)
-[![Python Version](https://img.shields.io/pypi/pyversions/gpgnotes)](https://pypi.org/project/gpgnotes/)
+[![Tests](https://github.com/oscarvalenzuelab/lalanotes/workflows/Tests/badge.svg)](https://github.com/oscarvalenzuelab/lalanotes/actions/workflows/test.yml)
+[![Lint](https://github.com/oscarvalenzuelab/lalanotes/workflows/Lint/badge.svg)](https://github.com/oscarvalenzuelab/lalanotes/actions/workflows/lint.yml)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
 A self-contained CLI note-taking tool with GPG encryption, automatic tagging, full-text search, and Git synchronization.
@@ -33,8 +32,8 @@ pip install gpgnotes
 ### Install from source
 
 ```bash
-git clone https://github.com/oscarvalenzuelab/gpgnotes.git
-cd gpgnotes
+git clone https://github.com/oscarvalenzuelab/lalanotes.git
+cd lalanotes
 pip install -e .
 ```
 
