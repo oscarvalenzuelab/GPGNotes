@@ -14,10 +14,6 @@ A self-contained CLI note-taking tool with GPG encryption, automatic tagging, fu
 - **Full-Text Search** - Fast SQLite FTS5-powered search across all notes
 - **Auto-Tagging** - Intelligent tag generation using TF-IDF
 - **Git Sync** - Automatic synchronization with private GitHub repositories
-- **Date-Based Organization** - Notes organized by year/month automatically
-- **Cross-Platform** - Works on Linux and macOS
-- **Rich CLI** - Beautiful terminal interface with interactive mode
-- **Self-Contained** - No external dependencies or services required
 
 ## Installation
 
