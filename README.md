@@ -15,7 +15,7 @@ A self-contained CLI note-taking tool with GPG encryption, automatic tagging, fu
 - **Auto-Tagging** - Intelligent tag generation using TF-IDF
 - **Git Sync** - Automatic synchronization with private GitHub repositories
 - **Date-Based Organization** - Notes organized by year/month automatically
-- **Cross-Platform** - Works on Linux, macOS, and Windows
+- **Cross-Platform** - Works on Linux and macOS
 - **Rich CLI** - Beautiful terminal interface with interactive mode
 - **Self-Contained** - No external dependencies or services required
 
@@ -23,11 +23,10 @@ A self-contained CLI note-taking tool with GPG encryption, automatic tagging, fu
 
 ### Prerequisites
 
-- Python 3.8 or higher
+- Python 3.11 or higher
 - GPG (GnuPG) installed on your system
   - **Linux**: `sudo apt install gnupg` (Debian/Ubuntu) or `sudo yum install gnupg` (RedHat/CentOS)
   - **macOS**: `brew install gnupg`
-  - **Windows**: Download from [GnuPG.org](https://gnupg.org/download/)
 
 ### Install from PyPI (coming soon)
 
@@ -97,8 +96,8 @@ notes new "Meeting Notes" --tags "work,meetings"
 notes search "project ideas"
 notes search --tag work
 
-# Edit a note
-notes edit "meeting notes"
+# Open/edit a note
+notes open <note-id>
 
 # List all notes
 notes list
@@ -149,16 +148,16 @@ LalaNotes stores everything in `~/.lalanotes/`:
 └── notes/              # Your encrypted notes
     ├── 2025/
     │   ├── 01/
-    │   │   ├── 2025-01-15-my-first-note.md.gpg
-    │   │   └── 2025-01-15-meeting-notes.md.gpg
+    │   │   ├── 20250115103000.md.gpg
+    │   │   └── 20250115143500.md.gpg
     │   └── 12/
-    │       └── 2025-12-15-project-ideas.md.gpg
+    │       └── 20251215091200.md.gpg
 ```
 
 Each note is:
 - **Encrypted** with your GPG key
 - **Organized** by creation date (YYYY/MM/)
-- **Named** using date + slugified title
+- **Named** using timestamp (YYYYMMDDHHmmss)
 - **Indexed** for fast searching
 
 ## Note Format
