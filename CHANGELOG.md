@@ -5,6 +5,29 @@ All notable changes to GPGNotes will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.4] - 2025-12-17
+
+### Added
+
+- **Daily Notes (Captain's Log)**: Quick daily log entries with timestamps and AI-generated summaries (#25).
+  - `notes daily "entry"` - Quick append to today's log (no editor opens)
+  - `notes daily "entry" --time` - Entry with timestamp prefix (e.g., "14:30 - entry")
+  - `notes today` - Open today's daily note in editor
+  - `notes yesterday` - Open yesterday's daily note
+  - `notes daily show` - View today's entries
+  - `notes daily show --week` - View this week's entries
+  - `notes daily summary --month` - Generate monthly summary
+  - `notes daily summary --week` - Generate weekly summary
+  - `notes daily summary --save` - Save summary as a new note
+  - LLM-powered summaries with accomplishments, themes, and patterns (requires LLM configuration)
+  - Basic stats fallback when LLM not configured
+  - Daily notes stored in `daily/YYYY/MM/YYYY-MM-DD.md.gpg`
+  - Full interactive mode support
+
+### Documentation
+
+- Added [Daily Notes documentation](docs/daily-notes.md) with usage examples and summary generation guide
+
 ## [0.2.3] - 2025-12-17
 
 ### Fixed

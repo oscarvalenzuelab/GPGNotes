@@ -13,6 +13,7 @@ A CLI note-taking tool with GPG encryption, automatic tagging, full-text search,
 - **Full-Text Search** - Fast SQLite FTS5-powered search across all notes
 - **Auto-Tagging** - Intelligent tag generation using TF-IDF
 - **Git Sync** - Automatic synchronization with private GitHub repositories
+- **Daily Notes** - Captain's Log style quick entries with summaries ([docs](docs/daily-notes.md))
 - **Note Templates** - Built-in templates (meeting, project, bug, journal, research) with custom template support
 - **Version History** - Git-based version tracking with history, diff, and restore commands
 - **Markdown Rendering** - Rich terminal preview with formatted display
@@ -110,6 +111,12 @@ notes sync
 | `notes delete <id>` | Delete a note |
 | `notes sync` | Sync with Git |
 | `notes config --show` | Show configuration |
+| `notes daily "entry"` | Quick daily log entry ([docs](docs/daily-notes.md)) |
+| `notes daily --time "entry"` | Entry with timestamp |
+| `notes today` | Open today's daily note |
+| `notes yesterday` | Open yesterday's note |
+| `notes daily show` | View today's entries |
+| `notes daily summary --month` | Generate monthly summary |
 | `notes enhance <id>` | AI enhancement ([docs](docs/ai-enhancement.md)) |
 | `notes import file.pdf` | Import file ([docs](docs/import-export.md)) |
 | `notes import <url>` | Import from URL (web clipper) |
@@ -133,6 +140,7 @@ Run `notes` without arguments for interactive mode with:
 ## Documentation
 
 - [Configuration & Note Format](docs/configuration.md)
+- [Daily Notes (Captain's Log)](docs/daily-notes.md)
 - [AI Enhancement](docs/ai-enhancement.md)
 - [Import & Export](docs/import-export.md)
 - [Spell Checking](docs/spell-checking.md)
