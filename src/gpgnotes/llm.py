@@ -5,6 +5,54 @@ from abc import ABC, abstractmethod
 from typing import Optional
 
 
+def sanitize_llm_output(text: str) -> str:
+    """
+    Sanitize LLM output to remove characters that can't be encoded in latin-1.
+
+    GPG encryption uses latin-1 encoding, so we need to convert or remove
+    Unicode characters that LLMs often produce (smart quotes, etc.).
+
+    Args:
+        text: The raw LLM output
+
+    Returns:
+        Sanitized text safe for latin-1 encoding
+    """
+    # Common Unicode replacements (smart quotes, dashes, etc.)
+    replacements = {
+        "\u2018": "'",  # Left single quotation mark
+        "\u2019": "'",  # Right single quotation mark
+        "\u201c": '"',  # Left double quotation mark
+        "\u201d": '"',  # Right double quotation mark
+        "\u2013": "-",  # En dash
+        "\u2014": "--",  # Em dash
+        "\u2026": "...",  # Horizontal ellipsis
+        "\u00a0": " ",  # Non-breaking space
+        "\u2022": "*",  # Bullet
+        "\u2023": ">",  # Triangular bullet
+        "\u2043": "-",  # Hyphen bullet
+        "\u00b7": "*",  # Middle dot
+        "\u2212": "-",  # Minus sign
+        "\u00ad": "",  # Soft hyphen (invisible)
+        "\ufeff": "",  # BOM / zero-width no-break space
+        "\u200b": "",  # Zero-width space
+        "\u200c": "",  # Zero-width non-joiner
+        "\u200d": "",  # Zero-width joiner
+    }
+
+    for unicode_char, replacement in replacements.items():
+        text = text.replace(unicode_char, replacement)
+
+    # Remove any remaining characters that can't be encoded in latin-1
+    try:
+        text.encode("latin-1")
+    except UnicodeEncodeError:
+        # Filter out non-encodable characters
+        text = "".join(c if ord(c) < 256 else "?" for c in text)
+
+    return text
+
+
 class LLMProvider(ABC):
     """Abstract base class for LLM providers."""
 
@@ -71,7 +119,8 @@ Provide ONLY the enhanced text without explanations or meta-commentary."""
                 temperature=0.3,  # Lower temperature for more consistent enhancements
             )
 
-            return response.choices[0].message.content.strip()
+            result = response.choices[0].message.content.strip()
+            return sanitize_llm_output(result)
         except Exception as e:
             raise RuntimeError(f"OpenAI API error: {e}")
 
@@ -124,7 +173,8 @@ Provide ONLY the enhanced text without explanations or meta-commentary."""
                 messages=[{"role": "user", "content": user_prompt}],
             )
 
-            return response.content[0].text.strip()
+            result = response.content[0].text.strip()
+            return sanitize_llm_output(result)
         except Exception as e:
             raise RuntimeError(f"Claude API error: {e}")
 
@@ -176,7 +226,8 @@ Provide ONLY the enhanced text without explanations or meta-commentary."""
                 options={"temperature": 0.3},
             )
 
-            return response["message"]["content"].strip()
+            result = response["message"]["content"].strip()
+            return sanitize_llm_output(result)
         except Exception as e:
             raise RuntimeError(f"Ollama API error: {e}")
 
