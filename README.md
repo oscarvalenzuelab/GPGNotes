@@ -13,6 +13,11 @@ A CLI note-taking tool with GPG encryption, automatic tagging, full-text search,
 - **Full-Text Search** - Fast SQLite FTS5-powered search across all notes
 - **Auto-Tagging** - Intelligent tag generation using TF-IDF
 - **Git Sync** - Automatic synchronization with private GitHub repositories
+- **Note Templates** - Built-in templates (meeting, project, bug, journal, research) with custom template support
+- **Version History** - Git-based version tracking with history, diff, and restore commands
+- **Markdown Rendering** - Rich terminal preview with formatted display
+- **URL Import** - Web clipper to import content from URLs
+- **Pagination** - Interactive pagination for list and search results
 - **AI Enhancement** - Optional LLM-powered note refinement ([docs](docs/ai-enhancement.md))
 - **Import/Export** - Support for PDF, DOCX, RTF formats ([docs](docs/import-export.md))
 
@@ -84,20 +89,31 @@ notes sync
 | Command | Description |
 |---------|-------------|
 | `notes new "Title"` | Create a new note |
+| `notes new --template meeting` | Create note from template |
 | `notes list` | List all notes |
 | `notes list --preview` | List with content preview |
+| `notes list --page-size 10` | List with custom pagination |
 | `notes recent` | Show 5 most recent notes |
 | `notes search "query"` | Full-text search |
 | `notes search --tag work` | Search by tag |
 | `notes open <id>` | Open note by ID |
 | `notes open "title"` | Open by title (fuzzy match) |
 | `notes open --last` | Open most recent note |
+| `notes show <id> --render` | Display note with formatting |
+| `notes preview <id>` | Rich markdown preview |
+| `notes history <id>` | Show version history |
+| `notes diff <id> --from <commit>` | Compare versions |
+| `notes restore <id> --version <commit>` | Restore previous version |
+| `notes template list` | List all templates |
+| `notes template show <name>` | Preview a template |
 | `notes tags` | List all tags |
 | `notes delete <id>` | Delete a note |
 | `notes sync` | Sync with Git |
 | `notes config --show` | Show configuration |
 | `notes enhance <id>` | AI enhancement ([docs](docs/ai-enhancement.md)) |
 | `notes import file.pdf` | Import file ([docs](docs/import-export.md)) |
+| `notes import <url>` | Import from URL (web clipper) |
+| `notes clip <url>` | Web clipper shortcut |
 | `notes export <id>` | Export note ([docs](docs/import-export.md)) |
 
 ### Interactive Mode
