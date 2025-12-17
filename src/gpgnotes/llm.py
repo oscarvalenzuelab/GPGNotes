@@ -20,24 +20,24 @@ def sanitize_llm_output(text: str) -> str:
     """
     # Common Unicode replacements (smart quotes, dashes, etc.)
     replacements = {
-        '\u2018': "'",   # Left single quotation mark
-        '\u2019': "'",   # Right single quotation mark
-        '\u201c': '"',   # Left double quotation mark
-        '\u201d': '"',   # Right double quotation mark
-        '\u2013': '-',   # En dash
-        '\u2014': '--',  # Em dash
-        '\u2026': '...', # Horizontal ellipsis
-        '\u00a0': ' ',   # Non-breaking space
-        '\u2022': '*',   # Bullet
-        '\u2023': '>',   # Triangular bullet
-        '\u2043': '-',   # Hyphen bullet
-        '\u00b7': '*',   # Middle dot
-        '\u2212': '-',   # Minus sign
-        '\u00ad': '',    # Soft hyphen (invisible)
-        '\ufeff': '',    # BOM / zero-width no-break space
-        '\u200b': '',    # Zero-width space
-        '\u200c': '',    # Zero-width non-joiner
-        '\u200d': '',    # Zero-width joiner
+        "\u2018": "'",  # Left single quotation mark
+        "\u2019": "'",  # Right single quotation mark
+        "\u201c": '"',  # Left double quotation mark
+        "\u201d": '"',  # Right double quotation mark
+        "\u2013": "-",  # En dash
+        "\u2014": "--",  # Em dash
+        "\u2026": "...",  # Horizontal ellipsis
+        "\u00a0": " ",  # Non-breaking space
+        "\u2022": "*",  # Bullet
+        "\u2023": ">",  # Triangular bullet
+        "\u2043": "-",  # Hyphen bullet
+        "\u00b7": "*",  # Middle dot
+        "\u2212": "-",  # Minus sign
+        "\u00ad": "",  # Soft hyphen (invisible)
+        "\ufeff": "",  # BOM / zero-width no-break space
+        "\u200b": "",  # Zero-width space
+        "\u200c": "",  # Zero-width non-joiner
+        "\u200d": "",  # Zero-width joiner
     }
 
     for unicode_char, replacement in replacements.items():
@@ -45,10 +45,10 @@ def sanitize_llm_output(text: str) -> str:
 
     # Remove any remaining characters that can't be encoded in latin-1
     try:
-        text.encode('latin-1')
+        text.encode("latin-1")
     except UnicodeEncodeError:
         # Filter out non-encodable characters
-        text = ''.join(c if ord(c) < 256 else '?' for c in text)
+        text = "".join(c if ord(c) < 256 else "?" for c in text)
 
     return text
 
