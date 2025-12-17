@@ -1096,7 +1096,7 @@ def interactive_mode():
         )
     )
 
-    config = Config()
+    app_config = Config()
     commands = WordCompleter(
         ["new", "list", "open", "delete", "tags", "export", "sync", "config", "help", "exit"]
     )
@@ -1156,8 +1156,19 @@ def interactive_mode():
                 ctx = click.Context(sync)
                 ctx.invoke(sync)
             elif command == "config":
-                ctx = click.Context(config, obj={"show": True})
-                ctx.invoke(config, show=True)
+                ctx = click.Context(config)
+                ctx.invoke(
+                    config,
+                    editor=None,
+                    git_remote=None,
+                    gpg_key=None,
+                    auto_sync=None,
+                    auto_tag=None,
+                    llm_provider=None,
+                    llm_model=None,
+                    llm_key=None,
+                    show=True,
+                )
             elif command in ["open", "delete", "export"] and not args:
                 console.print(f"[yellow]Usage: {command} <ID>[/yellow]")
                 console.print("[dim]Tip: Use search to find note IDs[/dim]")
