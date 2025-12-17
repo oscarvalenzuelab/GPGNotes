@@ -11,6 +11,7 @@ from prompt_toolkit import PromptSession, prompt
 from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.history import FileHistory
 from rich.console import Console
+from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.table import Table
 
@@ -1029,6 +1030,7 @@ def sync():
 @click.option("--gpg-key", help="Set GPG key ID")
 @click.option("--auto-sync/--no-auto-sync", default=None, help="Enable/disable auto-sync")
 @click.option("--auto-tag/--no-auto-tag", default=None, help="Enable/disable auto-tagging")
+@click.option("--render-preview/--no-render-preview", default=None, help="Enable/disable markdown rendering by default")
 @click.option(
     "--llm-provider",
     help="Set LLM provider (openai, claude, ollama)",
@@ -1037,7 +1039,7 @@ def sync():
 @click.option("--llm-key", help="Set LLM API key (encrypted with GPG)")
 @click.option("--show", is_flag=True, help="Show current configuration")
 def config(
-    editor, git_remote, gpg_key, auto_sync, auto_tag, llm_provider, llm_model, llm_key, show
+    editor, git_remote, gpg_key, auto_sync, auto_tag, render_preview, llm_provider, llm_model, llm_key, show
 ):
     """Configure GPGNotes."""
     cfg = Config()
@@ -1066,6 +1068,7 @@ Git Remote: {cfg.get("git_remote") or "[dim]not configured[/dim]"}
 GPG Key: {cfg.get("gpg_key") or "[dim]not configured[/dim]"}
 Auto-sync: {"[green]enabled[/green]" if cfg.get("auto_sync") else "[red]disabled[/red]"}
 Auto-tag: {"[green]enabled[/green]" if cfg.get("auto_tag") else "[red]disabled[/red]"}
+Render Preview: {"[green]enabled[/green]" if cfg.get("render_preview") else "[red]disabled[/red]"}
 
 [bold]LLM Enhancement:[/bold]
 Provider: {llm_prov}
@@ -1119,6 +1122,11 @@ Secrets file: {cfg._get_secrets_path()}
         cfg.set("auto_tag", auto_tag)
         status = "enabled" if auto_tag else "disabled"
         console.print(f"[green]✓[/green] Auto-tagging {status}")
+
+    if render_preview is not None:
+        cfg.set("render_preview", render_preview)
+        status = "enabled" if render_preview else "disabled"
+        console.print(f"[green]✓[/green] Markdown rendering {status}")
 
     if llm_provider:
         valid_providers = ["openai", "claude", "ollama"]
@@ -1179,6 +1187,7 @@ Secrets file: {cfg._get_secrets_path()}
             gpg_key,
             auto_sync is not None,
             auto_tag is not None,
+            render_preview is not None,
             llm_provider,
             llm_model,
             llm_key,
@@ -1792,13 +1801,16 @@ def history_cmd(note_id, verbose):
 @click.argument("note_id")
 @click.option("--version", "-v", type=int, help="Show specific version")
 @click.option("--at", help="Show version at date (YYYY-MM-DD)")
-def show_cmd(note_id, version, at):
+@click.option("--render", "-r", is_flag=True, help="Render markdown with formatting")
+@click.option("--raw", is_flag=True, help="Force raw markdown output")
+def show_cmd(note_id, version, at, render, raw):
     """Show note content, optionally at specific version.
 
     Examples:
         notes show 20251216120000              # Show current version
         notes show 20251216120000 -v 3         # Show version 3
         notes show 20251216120000 --at 2025-12-15
+        notes show 20251216120000 --render     # Show with markdown rendering
     """
     config = Config()
     storage = Storage(config)
@@ -1809,6 +1821,9 @@ def show_cmd(note_id, version, at):
         note = storage.load_note(file_path)
 
         # Get version if specified
+        content = None
+        title_suffix = ""
+
         if version or at:
             history_mgr = VersionHistory(config.notes_dir)
             commit = None
@@ -1818,11 +1833,13 @@ def show_cmd(note_id, version, at):
                 if not commit:
                     console.print(f"[red]Error: Version {version} not found[/red]")
                     return
+                title_suffix = f" [dim](Version {version})[/dim]"
             elif at:
                 commit = history_mgr.get_file_at_date(file_path, at)
                 if not commit:
                     console.print(f"[red]Error: No version found at date {at}[/red]")
                     return
+                title_suffix = f" [dim](Version at {at})[/dim]"
 
             # Get historical content
             content_bytes = history_mgr.get_version_content(file_path, commit)
@@ -1843,15 +1860,27 @@ def show_cmd(note_id, version, at):
                     tmp_path.unlink()
             else:
                 content = content_bytes.decode("utf-8")
-
-            # Display historical version
-            version_label = f"Version {version}" if version else f"Version at {at}"
-            console.print(f"\n[bold cyan]{note.title}[/bold cyan] [dim]({version_label})[/dim]\n")
-            console.print(content)
         else:
-            # Show current version
-            console.print(f"\n[bold cyan]{note.title}[/bold cyan]\n")
-            console.print(note.content)
+            # Use current content
+            content = note.content
+
+        # Determine if we should render
+        should_render = render or (config.get("render_preview") and not raw)
+
+        if should_render:
+            # Render with markdown
+            console.print(Panel(
+                f"[bold cyan]{note.title}[/bold cyan]{title_suffix}",
+                subtitle=f"Modified: {note.modified.strftime('%Y-%m-%d %H:%M')}" if not title_suffix else None,
+                border_style="cyan"
+            ))
+            console.print()
+            md = Markdown(content)
+            console.print(md)
+        else:
+            # Raw output
+            console.print(f"\n[bold cyan]{note.title}[/bold cyan]{title_suffix}\n")
+            console.print(content)
 
     except FileNotFoundError:
         console.print(f"[red]Error: Note with ID '{note_id}' not found[/red]")
@@ -1924,6 +1953,44 @@ def diff_cmd(note_id, from_ver, to_ver):
                 console.print(f"[dim]{line}[/dim]")
             else:
                 console.print(f"  {line}")
+
+    except FileNotFoundError:
+        console.print(f"[red]Error: Note with ID '{note_id}' not found[/red]")
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+
+
+@main.command("preview")
+@click.argument("note_id")
+def preview_cmd(note_id):
+    """Show note with markdown rendering (alias for 'show --render').
+
+    Examples:
+        notes preview 20251216120000
+    """
+    config = Config()
+    storage = Storage(config)
+
+    try:
+        # Find note
+        file_path = storage.find_by_id(note_id)
+        note = storage.load_note(file_path)
+
+        # Render with markdown
+        console.print(Panel(
+            f"[bold cyan]{note.title}[/bold cyan]",
+            subtitle=f"Modified: {note.modified.strftime('%Y-%m-%d %H:%M')}",
+            border_style="cyan"
+        ))
+        console.print()
+
+        # Render markdown content
+        md = Markdown(note.content)
+        console.print(md)
+
+        console.print(f"\n[dim]ID: {note.note_id}[/dim]")
+        if note.tags:
+            console.print(f"[dim]Tags: {', '.join(note.tags)}[/dim]")
 
     except FileNotFoundError:
         console.print(f"[red]Error: Note with ID '{note_id}' not found[/red]")
@@ -2211,6 +2278,7 @@ def interactive_mode():
                     gpg_key=None,
                     auto_sync=None,
                     auto_tag=None,
+                    render_preview=None,
                     llm_provider=None,
                     llm_model=None,
                     llm_key=None,
