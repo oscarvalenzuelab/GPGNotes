@@ -80,8 +80,8 @@ class GitSync:
             git_config.set_value("pull", "rebase", "false")
             # Use recursive merge strategy with ours preference
             git_config.set_value("merge", "conflictstyle", "merge")
-            # Set default merge strategy
-            git_config.set_value("pull", "ff", "only")
+            # Allow fast-forward when possible, but merge when needed
+            git_config.set_value("pull", "ff", "true")
 
     def _fix_detached_head(self) -> bool:
         """Fix detached HEAD state by checking out the branch."""
@@ -235,8 +235,9 @@ class GitSync:
                 origin.pull(current_branch, ff_only=True)
                 return True
             except git.GitCommandError:
-                # Fast-forward failed, try regular merge
-                origin.pull(current_branch)
+                # Fast-forward failed, try regular merge using git command directly
+                # This bypasses any ff=only config that might be set
+                self.repo.git.pull("origin", current_branch, no_ff=False)
                 return True
 
         except git.GitCommandError as e:
