@@ -811,8 +811,7 @@ Secrets file: {cfg._get_secrets_path()}
 
         if llm_provider.lower() != "ollama":
             console.print(
-                "[yellow]Remember to set API key with:[/yellow] "
-                "notes config --llm-key YOUR_API_KEY"
+                "[yellow]Remember to set API key with:[/yellow] notes config --llm-key YOUR_API_KEY"
             )
 
     if llm_model:
