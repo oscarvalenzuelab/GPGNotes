@@ -178,7 +178,11 @@ def _find_note(query: str, config: Config) -> Optional[Path]:
 
 
 def _background_sync():
-    """Background sync and auto-tag function to run on exit."""
+    """Background sync function to run on exit.
+
+    Note: Auto-tagging is done immediately when notes are created/imported,
+    so we only need to handle git sync here.
+    """
     try:
         # Clear sys.argv to avoid Click parsing issues during exit
         import sys
@@ -186,43 +190,16 @@ def _background_sync():
         original_argv = sys.argv[:]
         sys.argv = [sys.argv[0]] if sys.argv else []
 
-        config = Config()
+        try:
+            config = Config()
 
-        # Auto-tag recent notes if enabled
-        if config.get("auto_tag"):
-            storage = Storage(config)
-            index = SearchIndex(config)
-            tagger = AutoTagger()
-
-            # Get recent notes (modified in last hour)
-            from datetime import datetime, timedelta
-
-            recent_files = []
-            for file_path in storage.list_notes()[:10]:  # Check last 10 notes
-                try:
-                    note = storage.load_note(file_path)
-                    # If modified in last hour and has no tags or few tags
-                    if datetime.now() - note.modified < timedelta(hours=1) and len(note.tags) < 3:
-                        # Generate and add tags
-                        auto_tags = tagger.extract_tags(note.content, note.title)
-                        if auto_tags:
-                            note.tags = list(set(note.tags + auto_tags))  # Merge tags
-                            storage.save_note(note)
-                            index.add_note(note)
-                            recent_files.append(file_path)
-                except Exception:
-                    continue
-
-            if recent_files:
-                index.close()
-
-        # Sync to git if enabled
-        if config.get("auto_sync") and config.get("git_remote"):
-            sync = GitSync(config)
-            sync.sync("Auto-sync on exit")
-
-        # Restore sys.argv
-        sys.argv = original_argv
+            # Sync to git if enabled
+            if config.get("auto_sync") and config.get("git_remote"):
+                sync = GitSync(config)
+                sync.sync("Auto-sync on exit")
+        finally:
+            # Always restore sys.argv
+            sys.argv = original_argv
     except Exception:
         # Silently fail - we're exiting anyway
         pass
@@ -230,7 +207,7 @@ def _background_sync():
 
 @click.group(invoke_without_command=True)
 @click.pass_context
-@click.version_option(version="0.2.2")
+@click.version_option(version="0.2.3")
 def main(ctx):
     """GPGNotes - Encrypted note-taking with Git sync."""
     # Register exit handler for background sync

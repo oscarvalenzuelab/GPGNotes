@@ -5,6 +5,14 @@ All notable changes to GPGNotes will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3] - 2025-12-17
+
+### Fixed
+
+- **Unicode Encoding Error**: Fixed `latin-1` codec error when creating notes with Unicode characters (smart quotes, em dashes, etc.). The `sanitize_for_gpg()` function is now applied to all note content before encryption, not just during import. Fixes issue where typing characters like `'` would cause "Error creating note" message.
+
+- **Background Sync Crash**: Fixed exception in atexit callback `_background_sync` that caused Click to be re-invoked with note title words as arguments. Removed redundant auto-tagging from the exit callback since it's already performed immediately when notes are created/imported.
+
 ## [0.2.2] - 2025-12-17
 
 ### Fixed

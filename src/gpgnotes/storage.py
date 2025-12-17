@@ -7,6 +7,7 @@ from typing import List
 
 from .config import Config
 from .encryption import Encryption
+from .llm import sanitize_for_gpg
 from .note import Note
 
 
@@ -31,8 +32,9 @@ class Storage:
         # Create directory if needed
         full_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Encrypt and save
+        # Encrypt and save (sanitize for GPG's latin-1 encoding)
         markdown_content = note.to_markdown()
+        markdown_content = sanitize_for_gpg(markdown_content)
         self.encryption.encrypt(markdown_content, full_path)
 
         note.file_path = full_path

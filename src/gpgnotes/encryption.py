@@ -71,7 +71,11 @@ class Encryption:
 
     def encrypt_from_temp(self, temp_path: Path, output_path: Path) -> bool:
         """Read from temp file and encrypt to output path."""
-        with open(temp_path) as f:
+        from .llm import sanitize_for_gpg
+
+        with open(temp_path, encoding="utf-8") as f:
             content = f.read()
 
+        # Sanitize for GPG's latin-1 encoding
+        content = sanitize_for_gpg(content)
         return self.encrypt(content, output_path)
