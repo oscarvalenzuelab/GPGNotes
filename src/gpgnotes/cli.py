@@ -209,7 +209,7 @@ def _background_sync():
 
 @click.group(invoke_without_command=True)
 @click.pass_context
-@click.version_option(version="0.2.6")
+@click.version_option(version="0.2.7")
 def main(ctx):
     """GPGNotes - Encrypted note-taking with Git sync."""
     # Register exit handler for background sync
@@ -760,7 +760,7 @@ def _find_note_by_title(storage: Storage, query: str) -> Optional[Path]:
         return None
 
 
-@main.command()
+@main.command("list")
 @click.option("--preview", "-p", is_flag=True, help="Show first line of content")
 @click.option(
     "--sort",
@@ -772,7 +772,7 @@ def _find_note_by_title(storage: Storage, query: str) -> Optional[Path]:
 @click.option("--page-size", "-n", default=20, help="Items per page (default: 20)")
 @click.option("--tag", "-t", help="Filter by tag")
 @click.option("--no-pagination", is_flag=True, help="Disable pagination, show all results")
-def list(preview, sort, page_size, tag, no_pagination):
+def list_cmd(preview, sort, page_size, tag, no_pagination):
     """List all notes with optional filtering and sorting.
 
     Examples:
@@ -897,8 +897,10 @@ def recent(limit):
         notes recent -n 10  # Show 10 most recent
     """
     # Delegate to list command with defaults
-    ctx = click.Context(list)
-    ctx.invoke(list, preview=False, sort="modified", page_size=limit, tag=None, no_pagination=True)
+    ctx = click.Context(list_cmd)
+    ctx.invoke(
+        list_cmd, preview=False, sort="modified", page_size=limit, tag=None, no_pagination=True
+    )
 
 
 @main.command()
@@ -2605,9 +2607,9 @@ def interactive_mode():
 
                 ctx.invoke(new, title=title, tags=tags, template=template, var=())
             elif command == "list":
-                ctx = click.Context(list)
+                ctx = click.Context(list_cmd)
                 ctx.invoke(
-                    list,
+                    list_cmd,
                     preview=False,
                     sort="modified",
                     page_size=20,
@@ -2615,9 +2617,14 @@ def interactive_mode():
                     no_pagination=False,
                 )
             elif command == "recent":
-                ctx = click.Context(list)
+                ctx = click.Context(list_cmd)
                 ctx.invoke(
-                    list, preview=False, sort="modified", page_size=5, tag=None, no_pagination=True
+                    list_cmd,
+                    preview=False,
+                    sort="modified",
+                    page_size=5,
+                    tag=None,
+                    no_pagination=True,
                 )
             elif command == "open" and args:
                 ctx = click.Context(open)
