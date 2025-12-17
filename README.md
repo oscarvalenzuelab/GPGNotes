@@ -105,6 +105,14 @@ notes tags
 notes export <note-id> --format markdown
 notes export <note-id> --format html -o output.html
 notes export <note-id> --format json
+notes export <note-id> --format pdf -o output.pdf   # requires [import] extras
+notes export <note-id> --format docx -o output.docx # requires [import] extras
+notes export <note-id> --plain                       # export to plain/ folder
+
+# Import external files (requires [import] extras)
+notes import document.pdf
+notes import report.docx --title "Q4 Report" --tags work,quarterly
+notes import *.md  # batch import
 
 # Delete a note
 notes delete <note-id>
@@ -241,6 +249,74 @@ GPGNotes automatically generates tags using TF-IDF (Term Frequency-Inverse Docum
 - Suggests 3-5 meaningful tags
 
 You can always edit tags manually by editing the note's frontmatter.
+
+## File Import & Export (Optional)
+
+GPGNotes can import external files and export notes to various formats including PDF and DOCX.
+
+### Installation
+
+**If installed with pip:**
+
+```bash
+pip install gpgnotes[import]
+```
+
+**If installed with pipx:**
+
+```bash
+# Option 1: Install with extras (new install)
+pipx install gpgnotes[import]
+
+# Option 2: Inject into existing install
+pipx inject gpgnotes python-docx pypdf striprtf reportlab
+```
+
+### Importing Files
+
+Import external documents as encrypted notes:
+
+```bash
+# Import a single file
+notes import document.pdf
+
+# Import with custom title and tags
+notes import report.docx --title "Q4 Report" --tags work,quarterly
+
+# Batch import multiple files
+notes import *.md
+```
+
+**Supported formats:** `.md`, `.txt`, `.rtf`, `.pdf`, `.docx`
+
+### Exporting Notes
+
+Export notes to various formats:
+
+```bash
+# Text-based formats (output to stdout or file)
+notes export <note-id> --format markdown
+notes export <note-id> --format html -o output.html
+notes export <note-id> --format json
+notes export <note-id> --format rtf -o output.rtf
+
+# Binary formats (require output file)
+notes export <note-id> --format pdf -o output.pdf
+notes export <note-id> --format docx -o output.docx
+```
+
+### Plain Folder Export
+
+Export notes to a readable `plain/` folder that syncs with Git:
+
+```bash
+notes export <note-id> --plain
+```
+
+This exports to `~/.gpgnotes/plain/YYYY/MM/filename.md`, mirroring the notes structure. These files:
+- Are unencrypted and human-readable
+- Sync with Git alongside your encrypted notes
+- Are viewable directly on GitHub as formatted markdown
 
 ## AI-Powered Note Enhancement (Optional)
 
