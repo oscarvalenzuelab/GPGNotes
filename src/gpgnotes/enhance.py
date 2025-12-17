@@ -88,21 +88,15 @@ class EnhancementSession:
 
     def _show_menu(self) -> str:
         """Show interactive menu and get user choice."""
-        console.print("\n[bold cyan]What would you like to do?[/bold cyan]\n")
-
-        options = [
-            ("[a]", "Accept changes and save"),
-            ("[r]", "Reject changes (keep original)"),
-            ("[i]", "Iterate with new instructions"),
-            ("[d]", "Show detailed diff"),
-            ("[b]", "Back to previous version"),
-            ("[v]", "View current version"),
-            ("[o]", "View original version"),
-            ("[q]", "Quit without saving"),
-        ]
-
-        for key, description in options:
-            console.print(f"  [green bold]{key}[/green bold] {description}")
+        print("\nWhat would you like to do?\n")
+        print("  [a] Accept changes and save")
+        print("  [r] Reject changes (keep original)")
+        print("  [i] Iterate with new instructions")
+        print("  [d] Show detailed diff")
+        print("  [b] Back to previous version")
+        print("  [v] View current version")
+        print("  [o] View original version")
+        print("  [q] Quit without saving")
 
         validator = ChoiceValidator(["a", "r", "i", "d", "b", "v", "o", "q"])
 
@@ -118,20 +112,14 @@ class EnhancementSession:
 
     def _get_default_instructions(self) -> str:
         """Show preset enhancement options."""
-        console.print("\n[bold cyan]Choose enhancement style:[/bold cyan]\n")
-
-        presets_display = [
-            ("[1]", "Fix grammar and spelling"),
-            ("[2]", "Improve clarity and readability"),
-            ("[3]", "Make more concise"),
-            ("[4]", "Make more professional"),
-            ("[5]", "Make more casual"),
-            ("[6]", "Add bullet points/structure"),
-            ("[c]", "Custom instructions"),
-        ]
-
-        for key, description in presets_display:
-            console.print(f"  [green bold]{key}[/green bold] {description}")
+        print("\nChoose enhancement style:\n")
+        print("  [1] Fix grammar and spelling")
+        print("  [2] Improve clarity and readability")
+        print("  [3] Make more concise")
+        print("  [4] Make more professional")
+        print("  [5] Make more casual")
+        print("  [6] Add bullet points/structure")
+        print("  [c] Custom instructions")
 
         try:
             choice = prompt("\nChoice (or press Enter for grammar): ").lower().strip() or "1"
