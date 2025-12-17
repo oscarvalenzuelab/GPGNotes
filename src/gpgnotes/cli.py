@@ -682,18 +682,29 @@ def list(preview, sort, limit, tag):
             title = f"Notes tagged '{tag}'"
 
         table = Table(title=title)
-        table.add_column("ID", style="cyan", width=14)
-        table.add_column("Title", style="green", width=40 if not preview else 30)
-        table.add_column("Tags", style="blue", width=20 if not preview else 15)
-        table.add_column("Modified", style="yellow", width=16)
+        table.add_column("ID", style="cyan", width=14, no_wrap=True)
+        title_width = 30 if preview else 45
+        tags_width = 18 if preview else 25
+        table.add_column("Title", style="green", width=title_width, no_wrap=True)
+        table.add_column("Tags", style="blue", width=tags_width, no_wrap=True)
+        table.add_column("Modified", style="yellow", width=16, no_wrap=True)
         if preview:
-            table.add_column("Preview", style="dim", width=40)
+            table.add_column("Preview", style="dim", width=35, no_wrap=True)
 
         for note in notes_data:
+            # Truncate title and tags to fit columns
+            title_text = note.title
+            if len(title_text) > title_width - 3:
+                title_text = title_text[: title_width - 3] + "..."
+
+            tags_text = ", ".join(note.tags[:3])
+            if len(tags_text) > tags_width - 3:
+                tags_text = tags_text[: tags_width - 3] + "..."
+
             row = [
                 note.note_id,
-                note.title[:38] + "..." if len(note.title) > 38 else note.title,
-                ", ".join(note.tags[:3]),
+                title_text,
+                tags_text,
                 note.modified.strftime("%Y-%m-%d %H:%M"),
             ]
             if preview:
@@ -702,7 +713,7 @@ def list(preview, sort, limit, tag):
                 for line in note.content.split("\n"):
                     line = line.strip()
                     if line and not line.startswith("#"):
-                        first_line = line[:38] + "..." if len(line) > 38 else line
+                        first_line = line[:32] + "..." if len(line) > 32 else line
                         break
                 row.append(first_line)
 
