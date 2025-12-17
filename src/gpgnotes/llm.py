@@ -31,7 +31,7 @@ class LLMProvider(ABC):
 class OpenAIProvider(LLMProvider):
     """OpenAI GPT provider."""
 
-    def __init__(self, api_key: str, model: str = "gpt-4"):
+    def __init__(self, api_key: str, model: str = "gpt-4o-mini"):
         """Initialize OpenAI provider."""
         self.api_key = api_key
         self.model = model
@@ -215,7 +215,7 @@ def get_provider(
     if provider_name == "openai":
         if not api_key:
             raise ValueError("OpenAI requires an API key")
-        return OpenAIProvider(api_key=api_key, model=model or "gpt-4")
+        return OpenAIProvider(api_key=api_key, model=model or "gpt-4o-mini")
 
     elif provider_name == "claude":
         if not api_key:

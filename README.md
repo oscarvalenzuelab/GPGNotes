@@ -13,6 +13,7 @@ A CLI note-taking tool with GPG encryption, automatic tagging, full-text search,
 - **Full-Text Search** - Fast SQLite FTS5-powered search across all notes
 - **Auto-Tagging** - Intelligent tag generation using TF-IDF
 - **Git Sync** - Automatic synchronization with private GitHub repositories
+- **AI Enhancement** - Optional LLM-powered note refinement (OpenAI, Ollama)
 
 ## Installation
 
@@ -122,6 +123,10 @@ notes config --editor nano
 notes config --auto-sync
 notes config --no-auto-tag
 
+# AI-powered note enhancement (requires llm extras)
+notes enhance <note-id>                                      # Interactive mode
+notes enhance <note-id> --instructions "Fix grammar" --quick # Quick mode
+
 # Re-run initial setup
 notes init
 ```
@@ -199,6 +204,9 @@ The frontmatter is managed automatically by GPGNotes.
 | `gpg_key` | GPG key ID for encryption | Not set (required) |
 | `auto_sync` | Auto-sync after changes | `true` |
 | `auto_tag` | Auto-generate tags | `true` |
+| `llm_provider` | LLM provider (openai, ollama) | Not set |
+| `llm_model` | LLM model name | Provider default |
+| `llm_key` | API key (GPG-encrypted) | Not set |
 
 ## Git Synchronization
 
@@ -233,6 +241,89 @@ GPGNotes automatically generates tags using TF-IDF (Term Frequency-Inverse Docum
 - Suggests 3-5 meaningful tags
 
 You can always edit tags manually by editing the note's frontmatter.
+
+## AI-Powered Note Enhancement (Optional)
+
+GPGNotes includes optional AI-powered note enhancement to improve your writing. This feature supports multiple LLM providers and uses a human-in-the-loop workflow for iterative refinement.
+
+### Installation
+
+Install with LLM support:
+
+```bash
+pip install gpgnotes[llm]
+```
+
+This installs the optional dependencies for OpenAI and Ollama.
+
+### Supported Providers
+
+- **OpenAI** (GPT-4, GPT-4o, GPT-4o-mini) - Cloud-based, requires API key
+- **Ollama** (llama3.1, etc.) - Local LLM, no API key needed
+
+### Setup
+
+**For OpenAI:**
+
+```bash
+notes config --llm-provider openai
+notes config --llm-key sk-your-api-key-here
+notes config --llm-model gpt-4o-mini  # Optional, defaults to gpt-4o-mini
+```
+
+API keys are encrypted with your GPG key and stored securely.
+
+**For Ollama (local):**
+
+First, [install Ollama](https://ollama.ai/) and pull a model:
+
+```bash
+ollama pull llama3.1
+```
+
+Then configure GPGNotes:
+
+```bash
+notes config --llm-provider ollama
+notes config --llm-model llama3.1  # Optional, defaults to llama3.1
+```
+
+### Usage
+
+**Interactive mode** (recommended):
+
+```bash
+notes enhance <note-id>
+```
+
+This opens an interactive workflow where you can:
+- Choose from enhancement presets (grammar, clarity, conciseness, tone, structure)
+- Provide custom instructions
+- Iterate with new instructions to refine the output
+- View diffs between original and enhanced versions
+- Navigate version history (back/forward)
+- Accept or reject changes
+
+**Quick mode** (auto-apply):
+
+```bash
+notes enhance <note-id> --instructions "Fix grammar and spelling" --quick
+```
+
+### Enhancement Presets
+
+1. **Fix grammar and spelling** - Correct errors while maintaining tone
+2. **Improve clarity** - Make text easier to understand
+3. **Make more concise** - Remove redundancy
+4. **Make more professional** - Formal, structured tone
+5. **Make more casual** - Conversational tone
+6. **Add structure** - Organize with bullet points and headings
+
+### Security Note
+
+- OpenAI API keys are encrypted with GPG before storage
+- Ollama runs entirely locally (no data sent to external services)
+- Note content is sent to the LLM provider for enhancement (except Ollama)
 
 ## Spell Checking in Your Editor
 
@@ -269,8 +360,9 @@ No external dependencies needed - the editor you already use has spell checking!
 - **Encryption**: All notes are encrypted with GPG (AES256)
 - **Local-first**: Everything stored locally, you control the data
 - **Private repos**: Git sync designed for private repositories
-- **No cloud service**: No external services or API calls
+- **Encrypted secrets**: API keys stored encrypted with GPG
 - **Passphrase**: Your GPG passphrase protects everything
+- **Optional cloud**: LLM features are opt-in and use Ollama by default (local)
 
 ## License
 
@@ -278,4 +370,4 @@ Apache License 2.0 - see [LICENSE](LICENSE) for details.
 
 ---
 
-**Note**: This is an early release (v0.1.0). Expect bugs and breaking changes. Always backup your notes!
+**Note**: This is an early release. Expect bugs and breaking changes. Always backup your notes!
