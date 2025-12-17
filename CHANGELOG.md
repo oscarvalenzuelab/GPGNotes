@@ -5,6 +5,21 @@ All notable changes to GPGNotes will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3] - 2025-12-16
+
+### Fixed
+
+- **Detached HEAD State**: Fixed critical issue where git operations left repository in detached HEAD state, preventing push operations.
+- **Rebase Failures**: Switched from rebase to merge strategy for encrypted binary files, eliminating "could not apply" errors.
+- **Stuck Rebase Operations**: Added automatic detection and abort of stuck rebase operations before pull.
+- **HEAD Reference Errors**: Fixed "HEAD is a detached symbolic reference" errors during pull and push.
+
+### Changed
+
+- Git pull now uses merge strategy instead of rebase (safer for encrypted files).
+- Pull attempts fast-forward merge first, falls back to regular merge if needed.
+- Automatic detached HEAD detection and fix before all git operations.
+
 ## [0.1.2] - 2025-12-16
 
 ### Added
@@ -99,6 +114,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sync requires Git remote to be configured manually
 - Initial sync from existing remote requires `--allow-unrelated-histories` (handled automatically)
 
+[0.1.3]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.1.3
 [0.1.2]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.1.2
 [0.1.1]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.1.1
 [0.1.0]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.1.0
