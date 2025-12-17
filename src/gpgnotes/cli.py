@@ -209,7 +209,7 @@ def _background_sync():
 
 @click.group(invoke_without_command=True)
 @click.pass_context
-@click.version_option(version="0.2.5")
+@click.version_option(version="0.2.6")
 def main(ctx):
     """GPGNotes - Encrypted note-taking with Git sync."""
     # Register exit handler for background sync
@@ -2543,6 +2543,7 @@ def interactive_mode():
                     Panel.fit(
                         "[cyan]Available Commands:[/cyan]\n\n"
                         '  [green]new "Title"[/green] - Create new note\n'
+                        '  [green]new "Title" --template bug[/green] - Create from template\n'
                         "  [green]list[/green] - List all notes (--preview, --sort, --tag)\n"
                         "  [green]recent[/green] - Show recent notes\n"
                         "  [green]open <ID|title>[/green] - Open a note by ID or title\n"
@@ -2570,16 +2571,39 @@ def interactive_mode():
                 )
             elif command == "new":
                 ctx = click.Context(new)
-                # Parse quoted title if provided
+                # Parse title and options
                 title = None
+                template = None
+                tags = None
                 if args:
-                    # Simple parsing: treat first quoted string as title
-                    import re
+                    import shlex
 
-                    match = re.match(r'^"([^"]+)"', args)
-                    if match:
-                        title = match.group(1)
-                ctx.invoke(new, title=title, tags=None, template=None, var=())
+                    # Try to parse with shlex for proper quote handling
+                    try:
+                        parts = shlex.split(args)
+                    except ValueError:
+                        parts = args.split()
+
+                    # First non-option argument is the title
+                    i = 0
+                    while i < len(parts):
+                        part = parts[i]
+                        if part == "--template" and i + 1 < len(parts):
+                            template = parts[i + 1]
+                            i += 2
+                        elif part == "-t" and i + 1 < len(parts):
+                            tags = parts[i + 1]
+                            i += 2
+                        elif part == "--tags" and i + 1 < len(parts):
+                            tags = parts[i + 1]
+                            i += 2
+                        elif not part.startswith("-") and title is None:
+                            title = part
+                            i += 1
+                        else:
+                            i += 1
+
+                ctx.invoke(new, title=title, tags=tags, template=template, var=())
             elif command == "list":
                 ctx = click.Context(list)
                 ctx.invoke(
