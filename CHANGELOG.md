@@ -5,6 +5,27 @@ All notable changes to GPGNotes will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.5] - 2025-12-16
+
+### Fixed
+
+- **Interactive Menu Display**: Fixed enhancement UI menus not showing option keys ([a], [r], etc.) in some terminals. Replaced Rich Table with direct console printing for better compatibility.
+- **Tip Message**: Fixed "notes view" command reference to correct "notes open" command.
+
+### Changed
+
+- **Default OpenAI Model**: Changed default from `gpt-4` to `gpt-4o-mini` (more modern, cost-effective).
+- **Auto-Set Model**: When setting `--llm-provider` without `--llm-model`, automatically sets provider's default model to prevent mismatches.
+
+### Added
+
+- **LLM Documentation**: Added comprehensive AI enhancement documentation to README including:
+  - Installation instructions for both pip and pipx users
+  - Setup guides for OpenAI and Ollama
+  - Usage examples and enhancement presets
+  - Security notes about API key encryption
+- **Configuration Table**: Added LLM-related options to configuration reference table.
+
 ## [0.1.4] - 2025-12-16
 
 ### Added
@@ -137,6 +158,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sync requires Git remote to be configured manually
 - Initial sync from existing remote requires `--allow-unrelated-histories` (handled automatically)
 
+[0.1.5]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.1.5
+[0.1.4]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.1.4
 [0.1.3]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.1.3
 [0.1.2]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.1.2
 [0.1.1]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.1.1
