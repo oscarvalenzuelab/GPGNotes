@@ -5,6 +5,42 @@ All notable changes to GPGNotes will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.8] - 2025-12-16
+
+### Added
+
+- **File Import**: Import external files as encrypted notes with `notes import` command.
+  - Supported formats: `.md`, `.txt`, `.rtf`, `.pdf`, `.docx`
+  - Auto-detect titles from document content/metadata
+  - Batch import with glob patterns (e.g., `notes import *.md`)
+  - Optional `--title` and `--tags` flags
+  - Available in both CLI and interactive mode
+
+- **Extended Export Formats**: Added RTF, PDF, and DOCX export formats.
+  - `notes export <id> --format pdf -o output.pdf`
+  - `notes export <id> --format docx -o report.docx`
+  - `notes export <id> --format rtf -o document.rtf`
+
+- **Plain Folder Export**: Export notes to readable `plain/` folder with `--plain` flag.
+  - Files sync with git and are viewable on GitHub
+  - Mirrors notes directory structure (YYYY/MM/filename.md)
+
+- **Command History**: Arrow key navigation through previous commands in interactive mode.
+  - Persistent history saved to `~/.gpgnotes/command_history`
+  - `history [N]` command to show last N commands
+
+- **CONTRIBUTING.md**: Added contributor guidelines with development setup, code style, and PR process.
+
+### Fixed
+
+- **Workflow Security**: Added explicit `permissions: contents: read` to GitHub Actions workflows (resolves security scan alerts).
+- **Mypy Path**: Fixed incorrect path in lint workflow (`src/lalanotes` → `src/gpgnotes`).
+
+### Changed
+
+- **Optional Dependencies**: Added `[import]` optional dependency group for document parsing (python-docx, pypdf, striprtf).
+- **Export Refactor**: Refactored export command to use new exporter module for cleaner code organization.
+
 ## [0.1.7] - 2025-12-16
 
 ### Fixed
@@ -174,6 +210,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sync requires Git remote to be configured manually
 - Initial sync from existing remote requires `--allow-unrelated-histories` (handled automatically)
 
+[0.1.8]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.1.8
 [0.1.7]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.1.7
 [0.1.6]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.1.6
 [0.1.5]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.1.5
