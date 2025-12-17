@@ -59,15 +59,74 @@ class Storage:
             self.notes_dir.rglob("*.md.gpg"), key=lambda p: p.stat().st_mtime, reverse=True
         )
 
+    def _build_editor_command(self, editor: str, file_path: str) -> list[str]:
+        """
+        Build editor command with appropriate flags for markdown and text wrapping.
+
+        Args:
+            editor: Editor name (vim, nano, etc.)
+            file_path: Path to file to edit
+
+        Returns:
+            Command list for subprocess
+        """
+        editor_base = os.path.basename(editor).lower()
+
+        # Vim/Neovim: set textwidth, wrap, spell check for markdown
+        if editor_base in ["vim", "vi", "nvim"]:
+            return [
+                editor,
+                "+set textwidth=80",  # Wrap at 80 columns
+                "+set wrap",  # Enable visual line wrapping
+                "+set linebreak",  # Break at word boundaries
+                "+set spell spelllang=en_us",  # Enable spell check
+                "+set filetype=markdown",  # Enable markdown syntax
+                "+normal G",  # Go to end of file
+                str(file_path),
+            ]
+
+        # Nano: enable wrapping and spell check
+        elif editor_base == "nano":
+            return [
+                editor,
+                "-w",  # Disable line wrapping (we'll use soft wrap)
+                "-r",
+                "80",  # Set right margin at 80
+                "-S",  # Enable smooth scrolling
+                str(file_path),
+            ]
+
+        # Emacs: markdown mode with auto-fill
+        elif editor_base == "emacs":
+            return [
+                editor,
+                "--eval",
+                "(markdown-mode)",
+                "--eval",
+                "(auto-fill-mode 1)",
+                "--eval",
+                "(setq-default fill-column 80)",
+                str(file_path),
+            ]
+
+        # VS Code: just open the file (has built-in markdown support)
+        elif editor_base in ["code", "code-insiders"]:
+            return [editor, "--wait", str(file_path)]
+
+        # Default: no special flags
+        else:
+            return [editor, str(file_path)]
+
     def edit_note(self, file_path: Path) -> Note:
         """Edit note using configured editor."""
         # Decrypt to temp file
         temp_path = self.encryption.decrypt_to_temp(file_path)
 
         try:
-            # Open in editor
+            # Open in editor with appropriate flags
             editor = self.config.get("editor", "nano")
-            subprocess.run([editor, str(temp_path)], check=True)
+            editor_cmd = self._build_editor_command(editor, str(temp_path))
+            subprocess.run(editor_cmd, check=True)
 
             # Re-encrypt
             self.encryption.encrypt_from_temp(temp_path, file_path)
