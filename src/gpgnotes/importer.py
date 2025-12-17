@@ -384,7 +384,9 @@ def import_url(url: str, title: Optional[str] = None) -> Tuple[str, str]:
                     self.markdown.append(data)
                 else:
                     # Regular text
-                    if self.markdown and not self.markdown[-1].endswith((" ", "\n", "**", "*", "`", "[")):
+                    if self.markdown and not self.markdown[-1].endswith(
+                        (" ", "\n", "**", "*", "`", "[")
+                    ):
                         self.markdown.append(" ")
                     self.markdown.append(data)
 
@@ -393,7 +395,9 @@ def import_url(url: str, title: Optional[str] = None) -> Tuple[str, str]:
 
     # Fetch the URL
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (GPGNotes Web Clipper)"})
+        req = urllib.request.Request(
+            url, headers={"User-Agent": "Mozilla/5.0 (GPGNotes Web Clipper)"}
+        )
         with urllib.request.urlopen(req, timeout=30) as response:
             html_content = response.read().decode("utf-8", errors="ignore")
     except Exception as e:

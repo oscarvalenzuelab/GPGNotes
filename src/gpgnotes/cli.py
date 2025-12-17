@@ -45,12 +45,12 @@ def _paginate_results(items, page_size=20):
 
         # Yield the current page
         yield {
-            'items': page_items,
-            'page': current_page,
-            'total_pages': total_pages,
-            'total_items': total_items,
-            'start_idx': start_idx,
-            'end_idx': end_idx
+            "items": page_items,
+            "page": current_page,
+            "total_pages": total_pages,
+            "total_items": total_items,
+            "start_idx": start_idx,
+            "end_idx": end_idx,
         }
 
         # Check if we need pagination controls
@@ -58,20 +58,24 @@ def _paginate_results(items, page_size=20):
             break
 
         # Show pagination controls
-        console.print(f"\n[dim]Page {current_page} of {total_pages} ({start_idx + 1}-{end_idx} of {total_items} items)[/dim]")
-        console.print("[dim]Commands: [n]ext, [p]rev, [number] to jump to page, [q]uit pagination[/dim]")
+        console.print(
+            f"\n[dim]Page {current_page} of {total_pages} ({start_idx + 1}-{end_idx} of {total_items} items)[/dim]"
+        )
+        console.print(
+            "[dim]Commands: [n]ext, [p]rev, [number] to jump to page, [q]uit pagination[/dim]"
+        )
 
         try:
             choice = prompt("\nAction: ").strip().lower()
 
-            if choice in ['q', 'quit', '']:
+            if choice in ["q", "quit", ""]:
                 break
-            elif choice in ['n', 'next']:
+            elif choice in ["n", "next"]:
                 if current_page < total_pages:
                     current_page += 1
                 else:
                     console.print("[yellow]Already on last page[/yellow]")
-            elif choice in ['p', 'prev', 'previous']:
+            elif choice in ["p", "prev", "previous"]:
                 if current_page > 1:
                     current_page -= 1
                 else:
@@ -595,7 +599,7 @@ def search(query, tag, page_size, no_pagination):
 
                 # Build and display table for current page
                 page_title = f"{table_title} (Page {page_info['page']}/{page_info['total_pages']})"
-                table = build_search_table(page_info['items'], page_title)
+                table = build_search_table(page_info["items"], page_title)
                 console.print(table)
 
         console.print("\n[dim]Tip: Use 'notes open <ID>' to open a note[/dim]")
@@ -870,7 +874,7 @@ def list(preview, sort, page_size, tag, no_pagination):
 
                 # Build and display table for current page
                 page_title = f"{table_title} (Page {page_info['page']}/{page_info['total_pages']})"
-                table = build_table(page_info['items'], page_title)
+                table = build_table(page_info["items"], page_title)
                 console.print(table)
 
         console.print("\n[dim]Tip: Use 'notes open <ID>' or 'notes open <title>' to open[/dim]")
@@ -1030,7 +1034,11 @@ def sync():
 @click.option("--gpg-key", help="Set GPG key ID")
 @click.option("--auto-sync/--no-auto-sync", default=None, help="Enable/disable auto-sync")
 @click.option("--auto-tag/--no-auto-tag", default=None, help="Enable/disable auto-tagging")
-@click.option("--render-preview/--no-render-preview", default=None, help="Enable/disable markdown rendering by default")
+@click.option(
+    "--render-preview/--no-render-preview",
+    default=None,
+    help="Enable/disable markdown rendering by default",
+)
 @click.option(
     "--llm-provider",
     help="Set LLM provider (openai, claude, ollama)",
@@ -1039,7 +1047,16 @@ def sync():
 @click.option("--llm-key", help="Set LLM API key (encrypted with GPG)")
 @click.option("--show", is_flag=True, help="Show current configuration")
 def config(
-    editor, git_remote, gpg_key, auto_sync, auto_tag, render_preview, llm_provider, llm_model, llm_key, show
+    editor,
+    git_remote,
+    gpg_key,
+    auto_sync,
+    auto_tag,
+    render_preview,
+    llm_provider,
+    llm_model,
+    llm_key,
+    show,
 ):
     """Configure GPGNotes."""
     cfg = Config()
@@ -1680,7 +1697,6 @@ tags: {note.tags}
         console.print("[dim]Enter template content (Ctrl+D or Ctrl+Z when done):[/dim]\n")
 
         try:
-
             lines = []
             while True:
                 try:
@@ -1821,7 +1837,9 @@ def history_cmd(note_id, verbose):
             ]
             if verbose:
                 row.append(version.commit)
-                row.append(version.author[:17] + "..." if len(version.author) > 17 else version.author)
+                row.append(
+                    version.author[:17] + "..." if len(version.author) > 17 else version.author
+                )
 
             table.add_row(*row)
 
@@ -1911,11 +1929,15 @@ def show_cmd(note_id, version, at, render, raw):
 
         if should_render:
             # Render with markdown
-            console.print(Panel(
-                f"[bold cyan]{note.title}[/bold cyan]{title_suffix}",
-                subtitle=f"Modified: {note.modified.strftime('%Y-%m-%d %H:%M')}" if not title_suffix else None,
-                border_style="cyan"
-            ))
+            console.print(
+                Panel(
+                    f"[bold cyan]{note.title}[/bold cyan]{title_suffix}",
+                    subtitle=f"Modified: {note.modified.strftime('%Y-%m-%d %H:%M')}"
+                    if not title_suffix
+                    else None,
+                    border_style="cyan",
+                )
+            )
             console.print()
             md = Markdown(content)
             console.print(md)
@@ -1964,7 +1986,9 @@ def diff_cmd(note_id, from_ver, to_ver):
             from_label = f"Version {versions[1].number}"
             to_label = f"Version {versions[0].number} (current)"
         else:
-            from_commit = history_mgr.get_version_by_number(file_path, from_ver or versions[-1].number)
+            from_commit = history_mgr.get_version_by_number(
+                file_path, from_ver or versions[-1].number
+            )
             to_commit = history_mgr.get_version_by_number(file_path, to_ver or versions[0].number)
 
             if not from_commit or not to_commit:
@@ -1974,8 +1998,28 @@ def diff_cmd(note_id, from_ver, to_ver):
             from_label = f"Version {from_ver or versions[-1].number}"
             to_label = f"Version {to_ver or versions[0].number}"
 
+        # Create decrypt function if needed
+        decrypt_func = None
+        if file_path.suffix == ".gpg":
+            import tempfile
+
+            from .encryption import Encryption
+
+            encryption = Encryption(config.get("gpg_key"))
+
+            def decrypt_func(content_bytes: bytes) -> str:
+                """Helper to decrypt content bytes."""
+                with tempfile.NamedTemporaryFile(suffix=".gpg", delete=False) as tmp:
+                    tmp.write(content_bytes)
+                    tmp_path = Path(tmp.name)
+
+                try:
+                    return encryption.decrypt(tmp_path)
+                finally:
+                    tmp_path.unlink()
+
         # Get diff
-        diff_output = history_mgr.diff_versions(file_path, from_commit, to_commit)
+        diff_output = history_mgr.diff_versions(file_path, from_commit, to_commit, decrypt_func)
 
         if not diff_output:
             console.print("[yellow]No differences found[/yellow]")
@@ -2019,11 +2063,13 @@ def preview_cmd(note_id):
         note = storage.load_note(file_path)
 
         # Render with markdown
-        console.print(Panel(
-            f"[bold cyan]{note.title}[/bold cyan]",
-            subtitle=f"Modified: {note.modified.strftime('%Y-%m-%d %H:%M')}",
-            border_style="cyan"
-        ))
+        console.print(
+            Panel(
+                f"[bold cyan]{note.title}[/bold cyan]",
+                subtitle=f"Modified: {note.modified.strftime('%Y-%m-%d %H:%M')}",
+                border_style="cyan",
+            )
+        )
         console.print()
 
         # Render markdown content
@@ -2090,7 +2136,9 @@ def restore_cmd(note_id, version, preview):
 
         if preview:
             # Just show the content
-            console.print(f"\n[bold cyan]Preview:[/bold cyan] {note.title} [dim](Version {version})[/dim]\n")
+            console.print(
+                f"\n[bold cyan]Preview:[/bold cyan] {note.title} [dim](Version {version})[/dim]\n"
+            )
             console.print(content)
             console.print(f"\n[dim]Use 'notes restore {note_id} -v {version}' to restore[/dim]")
         else:
@@ -2108,7 +2156,9 @@ def restore_cmd(note_id, version, preview):
                 _sync_in_background(config, f"Restore note '{note.title}' to version {version}")
 
             console.print(f"[green]✓[/green] Note restored to version {version}")
-            console.print(f"[dim]This created a new version. Use 'notes history {note_id}' to see it.[/dim]")
+            console.print(
+                f"[dim]This created a new version. Use 'notes history {note_id}' to see it.[/dim]"
+            )
 
     except FileNotFoundError:
         console.print(f"[red]Error: Note with ID '{note_id}' not found[/red]")
@@ -2282,10 +2332,19 @@ def interactive_mode():
                 ctx.invoke(new)
             elif command == "list":
                 ctx = click.Context(list)
-                ctx.invoke(list, preview=False, sort="modified", page_size=20, tag=None, no_pagination=False)
+                ctx.invoke(
+                    list,
+                    preview=False,
+                    sort="modified",
+                    page_size=20,
+                    tag=None,
+                    no_pagination=False,
+                )
             elif command == "recent":
                 ctx = click.Context(list)
-                ctx.invoke(list, preview=False, sort="modified", page_size=5, tag=None, no_pagination=True)
+                ctx.invoke(
+                    list, preview=False, sort="modified", page_size=5, tag=None, no_pagination=True
+                )
             elif command == "open" and args:
                 ctx = click.Context(open)
                 ctx.invoke(open, note_id=args, last=False)

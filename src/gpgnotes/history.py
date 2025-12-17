@@ -88,14 +88,22 @@ class VersionHistory:
             return []
 
     def get_version_content(self, file_path: Path, commit: str) -> bytes:
-        """Get file content at specific commit."""
+        """Get file content at specific commit.
+
+        Returns raw bytes (may be encrypted if file is .gpg).
+        """
         rel_path = file_path.relative_to(self.repo_path)
 
         try:
-            content = self._run_git("show", f"{commit}:{rel_path}")
-            return content.encode("utf-8")
-        except RuntimeError as e:
-            raise FileNotFoundError(f"Version not found: {e}")
+            # Use subprocess directly to get raw bytes for binary files
+            result = subprocess.run(
+                ["git", "-C", str(self.repo_path), "show", f"{commit}:{rel_path}"],
+                capture_output=True,
+                check=True,
+            )
+            return result.stdout  # Raw bytes
+        except subprocess.CalledProcessError as e:
+            raise FileNotFoundError(f"Version not found: {e.stderr.decode('utf-8', errors='ignore')}")
 
     def get_version_by_number(self, file_path: Path, version_num: int) -> Optional[str]:
         """Get commit hash by version number."""
@@ -106,23 +114,63 @@ class VersionHistory:
         return None
 
     def diff_versions(
-        self, file_path: Path, from_commit: str, to_commit: str
+        self, file_path: Path, from_commit: str, to_commit: str, decrypt_func=None
     ) -> str:
-        """Get unified diff between two versions."""
-        rel_path = file_path.relative_to(self.repo_path)
+        """Get unified diff between two versions.
 
-        try:
-            diff_output = self._run_git(
-                "diff",
-                "--no-color",
-                from_commit,
-                to_commit,
-                "--",
-                str(rel_path),
-            )
-            return diff_output
-        except RuntimeError:
-            return ""
+        Args:
+            file_path: Path to the file
+            from_commit: Starting commit hash
+            to_commit: Ending commit hash
+            decrypt_func: Optional function to decrypt content (for .gpg files)
+
+        Returns:
+            Unified diff string
+        """
+        # Check if this is an encrypted file
+        if file_path.suffix == ".gpg" and decrypt_func:
+            # Get content from both versions
+            try:
+                from_content_bytes = self.get_version_content(file_path, from_commit)
+                to_content_bytes = self.get_version_content(file_path, to_commit)
+
+                # Decrypt both versions
+                from_content = decrypt_func(from_content_bytes)
+                to_content = decrypt_func(to_content_bytes)
+
+                # Generate text diff
+                import difflib
+
+                from_lines = from_content.splitlines(keepends=True)
+                to_lines = to_content.splitlines(keepends=True)
+
+                diff = difflib.unified_diff(
+                    from_lines,
+                    to_lines,
+                    fromfile=f"version {from_commit[:7]}",
+                    tofile=f"version {to_commit[:7]}",
+                    lineterm="",
+                )
+
+                return "\n".join(diff)
+            except Exception as e:
+                return f"Error generating diff: {e}"
+        else:
+            # Plain file, use git diff directly
+            rel_path = file_path.relative_to(self.repo_path)
+
+            try:
+                diff_output = self._run_git(
+                    "diff",
+                    "--no-color",
+                    from_commit,
+                    to_commit,
+                    "--",
+                    str(rel_path),
+                )
+                return diff_output
+            except RuntimeError:
+                return ""
 
     def get_file_at_date(self, file_path: Path, date: str) -> Optional[str]:
         """Get commit hash closest to specified date."""
@@ -142,9 +190,7 @@ class VersionHistory:
         except RuntimeError:
             return None
 
-    def restore_version(
-        self, file_path: Path, commit: str, storage
-    ) -> None:
+    def restore_version(self, file_path: Path, commit: str, storage) -> None:
         """Restore file to a specific version by creating a new version.
 
         This is non-destructive - creates a new commit with old content.
