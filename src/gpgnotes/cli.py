@@ -462,7 +462,7 @@ def search(query, tag):
         if len(results) > 20:
             console.print(f"\n[dim]Showing 20 of {len(results)} results[/dim]")
 
-        console.print("\n[dim]Tip: Use 'notes view <ID>' to view a note[/dim]")
+        console.print("\n[dim]Tip: Use 'notes open <ID>' to open a note[/dim]")
 
     finally:
         index.close()
@@ -564,7 +564,7 @@ def list():
         if len(file_paths) >= 50:
             console.print("\n[dim]Showing first 50 notes[/dim]")
 
-        console.print("\n[dim]Tip: Use 'notes view <ID>' to view a note[/dim]")
+        console.print("\n[dim]Tip: Use 'notes open <ID>' to open a note[/dim]")
 
     except Exception as e:
         console.print(f"[red]Error listing notes: {e}[/red]")
