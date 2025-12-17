@@ -248,13 +248,26 @@ GPGNotes includes optional AI-powered note enhancement to improve your writing. 
 
 ### Installation
 
-Install with LLM support:
+**If installed with pip:**
 
 ```bash
 pip install gpgnotes[llm]
 ```
 
-This installs the optional dependencies for OpenAI and Ollama.
+**If installed with pipx:**
+
+You need to inject the LLM dependencies into the GPGNotes virtual environment:
+
+```bash
+pipx inject gpgnotes openai anthropic ollama
+```
+
+Or inject only what you need:
+
+```bash
+pipx inject gpgnotes openai    # For OpenAI only
+pipx inject gpgnotes ollama    # For Ollama only
+```
 
 ### Supported Providers
 
