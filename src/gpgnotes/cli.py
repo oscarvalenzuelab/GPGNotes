@@ -8,7 +8,7 @@ from typing import Optional
 
 import click
 from prompt_toolkit import PromptSession, prompt
-from prompt_toolkit.completion import WordCompleter
+from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.history import FileHistory
 from rich.console import Console
 from rich.panel import Panel
@@ -470,9 +470,16 @@ def search(query, tag):
 
 
 @main.command()
-@click.argument("note_id")
-def open(note_id):
-    """Open a note by ID (use 'notes search' to find IDs)."""
+@click.argument("note_id", required=False)
+@click.option("--last", "-l", is_flag=True, help="Open most recently modified note")
+def open(note_id, last):
+    """Open a note by ID, title, or use --last for most recent.
+
+    Examples:
+        notes open 20251216120000      # By ID
+        notes open "meeting"           # By title (fuzzy match)
+        notes open --last              # Most recent note
+    """
     config = Config()
     storage = Storage(config)
     index = SearchIndex(config)
@@ -496,17 +503,46 @@ def open(note_id):
                     continue
             index.rebuild_index(notes)
 
-        # Validate ID format
-        if not (note_id.isdigit() and len(note_id) == 14):
-            console.print(f"[red]Error: Invalid note ID '{note_id}'[/red]")
-            console.print("[yellow]Tip: Use 'notes search <query>' to find note IDs[/yellow]")
-            return
+        # Handle --last flag
+        if last:
+            note_files = list(storage.list_notes())
+            if not note_files:
+                console.print("[yellow]No notes found[/yellow]")
+                return
 
-        # Find note by ID
-        try:
-            file_path = storage.find_by_id(note_id)
-        except FileNotFoundError:
-            console.print(f"[red]Error: Note with ID '{note_id}' not found[/red]")
+            # Load all notes and find most recent
+            notes_with_dates = []
+            for file_path_item in note_files:
+                try:
+                    note_item = storage.load_note(file_path_item)
+                    notes_with_dates.append((file_path_item, note_item))
+                except Exception:
+                    continue
+
+            if not notes_with_dates:
+                console.print("[yellow]No notes found[/yellow]")
+                return
+
+            # Sort by modified date descending
+            notes_with_dates.sort(key=lambda x: x[1].modified, reverse=True)
+            file_path, _ = notes_with_dates[0]
+
+        elif note_id:
+            # Check if it's a valid ID format
+            if note_id.isdigit() and len(note_id) == 14:
+                # Find note by ID
+                try:
+                    file_path = storage.find_by_id(note_id)
+                except FileNotFoundError:
+                    console.print(f"[red]Error: Note with ID '{note_id}' not found[/red]")
+                    return
+            else:
+                # Try fuzzy matching by title
+                file_path = _find_note_by_title(storage, note_id)
+                if not file_path:
+                    return
+        else:
+            console.print("[yellow]Usage: notes open <ID or title> or notes open --last[/yellow]")
             return
 
         # Edit note
@@ -529,46 +565,172 @@ def open(note_id):
         index.close()
 
 
+def _find_note_by_title(storage: Storage, query: str) -> Optional[Path]:
+    """Find a note by fuzzy matching the title.
+
+    Returns the file path if a single match or user selects one,
+    None if no match or user cancels.
+    """
+    query_lower = query.lower()
+    matches = []
+
+    for file_path in storage.list_notes():
+        try:
+            note = storage.load_note(file_path)
+            if query_lower in note.title.lower():
+                matches.append((file_path, note))
+        except Exception:
+            continue
+
+    if not matches:
+        console.print(f"[yellow]No notes matching '{query}'[/yellow]")
+        console.print("[dim]Tip: Use 'notes search <query>' for full-text search[/dim]")
+        return None
+
+    if len(matches) == 1:
+        return matches[0][0]
+
+    # Multiple matches - let user choose
+    console.print(f"\n[cyan]Multiple notes match '{query}':[/cyan]\n")
+    for i, (_, note) in enumerate(matches[:10], 1):
+        note_id = note.modified.strftime("%Y%m%d%H%M%S")
+        console.print(f"  [{i}] {note.title} [dim]({note_id})[/dim]")
+
+    if len(matches) > 10:
+        console.print(f"  [dim]... and {len(matches) - 10} more[/dim]")
+
+    console.print()
+    try:
+        choice = prompt("Select note (number) or press Enter to cancel: ").strip()
+        if not choice:
+            return None
+        idx = int(choice) - 1
+        if 0 <= idx < len(matches):
+            return matches[idx][0]
+        else:
+            console.print("[red]Invalid selection[/red]")
+            return None
+    except (ValueError, KeyboardInterrupt, EOFError):
+        return None
+
+
 @main.command()
-def list():
-    """List all notes."""
+@click.option("--preview", "-p", is_flag=True, help="Show first line of content")
+@click.option(
+    "--sort",
+    "-s",
+    type=click.Choice(["modified", "created", "title"]),
+    default="modified",
+    help="Sort order (default: modified)",
+)
+@click.option("--limit", "-n", default=50, help="Maximum notes to show (default: 50)")
+@click.option("--tag", "-t", help="Filter by tag")
+def list(preview, sort, limit, tag):
+    """List all notes with optional filtering and sorting.
+
+    Examples:
+        notes list                    # Default: sorted by modified
+        notes list --preview          # Show content preview
+        notes list --sort title       # Sort alphabetically
+        notes list --tag work         # Filter by tag
+        notes list -n 10              # Show only 10 notes
+    """
     config = Config()
     storage = Storage(config)
 
     try:
-        file_paths = storage.list_notes()[:50]
+        file_paths = storage.list_notes()
 
         if not file_paths:
             console.print("[yellow]No notes found[/yellow]")
             return
 
-        table = Table(title="All Notes")
-        table.add_column("ID", style="cyan", width=14)
-        table.add_column("Title", style="green", width=40)
-        table.add_column("Tags", style="blue", width=20)
-        table.add_column("Modified", style="yellow", width=16)
-
+        # Load all notes
+        notes_data = []
         for file_path in file_paths:
             try:
                 note = storage.load_note(file_path)
-                table.add_row(
-                    note.note_id,
-                    note.title[:38] + "..." if len(note.title) > 38 else note.title,
-                    ", ".join(note.tags[:3]),
-                    note.modified.strftime("%Y-%m-%d %H:%M"),
-                )
+                # Filter by tag if specified
+                if tag and tag.lower() not in [t.lower() for t in note.tags]:
+                    continue
+                notes_data.append(note)
             except Exception:
                 continue
 
+        if not notes_data:
+            if tag:
+                console.print(f"[yellow]No notes found with tag '{tag}'[/yellow]")
+            else:
+                console.print("[yellow]No notes found[/yellow]")
+            return
+
+        # Sort notes
+        if sort == "modified":
+            notes_data.sort(key=lambda n: n.modified, reverse=True)
+        elif sort == "created":
+            notes_data.sort(key=lambda n: n.created, reverse=True)
+        elif sort == "title":
+            notes_data.sort(key=lambda n: n.title.lower())
+
+        # Apply limit
+        total_count = len(notes_data)
+        notes_data = notes_data[:limit]
+
+        # Build table
+        title = "All Notes"
+        if tag:
+            title = f"Notes tagged '{tag}'"
+
+        table = Table(title=title)
+        table.add_column("ID", style="cyan", width=14)
+        table.add_column("Title", style="green", width=40 if not preview else 30)
+        table.add_column("Tags", style="blue", width=20 if not preview else 15)
+        table.add_column("Modified", style="yellow", width=16)
+        if preview:
+            table.add_column("Preview", style="dim", width=40)
+
+        for note in notes_data:
+            row = [
+                note.note_id,
+                note.title[:38] + "..." if len(note.title) > 38 else note.title,
+                ", ".join(note.tags[:3]),
+                note.modified.strftime("%Y-%m-%d %H:%M"),
+            ]
+            if preview:
+                # Get first non-empty line of content
+                first_line = ""
+                for line in note.content.split("\n"):
+                    line = line.strip()
+                    if line and not line.startswith("#"):
+                        first_line = line[:38] + "..." if len(line) > 38 else line
+                        break
+                row.append(first_line)
+
+            table.add_row(*row)
+
         console.print(table)
 
-        if len(file_paths) >= 50:
-            console.print("\n[dim]Showing first 50 notes[/dim]")
+        if total_count > limit:
+            console.print(f"\n[dim]Showing {limit} of {total_count} notes[/dim]")
 
-        console.print("\n[dim]Tip: Use 'notes open <ID>' to open a note[/dim]")
+        console.print("\n[dim]Tip: Use 'notes open <ID>' or 'notes open <title>' to open[/dim]")
 
     except Exception as e:
         console.print(f"[red]Error listing notes: {e}[/red]")
+
+
+@main.command()
+@click.option("--limit", "-n", default=5, help="Number of recent notes (default: 5)")
+def recent(limit):
+    """Show recently modified notes (shortcut for 'list --sort modified').
+
+    Examples:
+        notes recent        # Show 5 most recent
+        notes recent -n 10  # Show 10 most recent
+    """
+    # Delegate to list command with defaults
+    ctx = click.Context(list)
+    ctx.invoke(list, preview=False, sort="modified", limit=limit, tag=None)
 
 
 @main.command()
@@ -1200,9 +1362,89 @@ def enhance(note_id, instructions, quick):
         index.close()
 
 
+class NotesCompleter(Completer):
+    """Custom completer that provides note titles after certain commands."""
+
+    COMMANDS = [
+        "new",
+        "list",
+        "recent",
+        "open",
+        "delete",
+        "import",
+        "enhance",
+        "tags",
+        "export",
+        "sync",
+        "config",
+        "history",
+        "help",
+        "exit",
+    ]
+
+    # Commands that accept note titles as arguments
+    NOTE_COMMANDS = ["open", "delete", "enhance", "export"]
+
+    def __init__(self, storage: Storage):
+        self.storage = storage
+        self._note_cache = None
+        self._cache_time = None
+
+    def _get_note_titles(self):
+        """Get note titles with caching."""
+        import time
+
+        # Cache for 5 seconds
+        if self._cache_time and time.time() - self._cache_time < 5:
+            return self._note_cache
+
+        titles = []
+        for file_path in self.storage.list_notes():
+            try:
+                note = self.storage.load_note(file_path)
+                titles.append((note.title, note.note_id))
+            except Exception:
+                continue
+
+        self._note_cache = titles
+        self._cache_time = time.time()
+        return titles
+
+    def get_completions(self, document, complete_event):
+        text = document.text_before_cursor
+        words = text.split()
+
+        if len(words) == 0 or (len(words) == 1 and not text.endswith(" ")):
+            # Complete command
+            word = words[0] if words else ""
+            for cmd in self.COMMANDS:
+                if cmd.startswith(word.lower()):
+                    yield Completion(cmd, start_position=-len(word))
+
+        elif len(words) >= 1 and text.endswith(" ") or len(words) >= 2:
+            # Complete argument
+            cmd = words[0].lower()
+            if cmd in self.NOTE_COMMANDS:
+                # Complete with note titles
+                partial = words[1] if len(words) > 1 and not text.endswith(" ") else ""
+                partial_lower = partial.lower()
+
+                for title, note_id in self._get_note_titles():
+                    if partial_lower in title.lower() or partial_lower in note_id:
+                        # Show title, complete with ID for reliability
+                        display = f"{title} ({note_id})"
+                        yield Completion(
+                            note_id,
+                            start_position=-len(partial),
+                            display=display,
+                            display_meta="note",
+                        )
+
+
 def interactive_mode():
     """Interactive mode with fuzzy search and command history."""
     cfg = Config()
+    storage = Storage(cfg)
 
     # Set up command history
     history_file = cfg.config_dir / "command_history"
@@ -1214,7 +1456,8 @@ def interactive_mode():
             "Type to search, or use commands:\n"
             "  [green]new[/green] - Create new note\n"
             "  [green]list[/green] - List all notes\n"
-            "  [green]open <ID>[/green] - Open a note\n"
+            "  [green]recent[/green] - Show recent notes\n"
+            "  [green]open <ID|title>[/green] - Open a note\n"
             "  [green]delete <ID>[/green] - Delete a note\n"
             "  [green]import <file>[/green] - Import a file as note\n"
             "  [green]enhance <ID>[/green] - Enhance note with AI\n"
@@ -1225,31 +1468,16 @@ def interactive_mode():
             "  [green]history[/green] - Show command history\n"
             "  [green]help or ?[/green] - Show help\n"
             "  [green]exit[/green] - Exit\n\n"
-            "[dim]Tip: Use Up/Down arrows to navigate command history[/dim]",
+            "[dim]Tip: Use Tab to autocomplete note titles after open/delete/export[/dim]",
             title="Welcome",
         )
     )
 
-    commands = WordCompleter(
-        [
-            "new",
-            "list",
-            "open",
-            "delete",
-            "import",
-            "enhance",
-            "tags",
-            "export",
-            "sync",
-            "config",
-            "history",
-            "help",
-            "exit",
-        ]
-    )
+    # Create completer with note title support
+    completer = NotesCompleter(storage)
 
     # Create a session with history support
-    session = PromptSession(history=history, completer=commands)
+    session = PromptSession(history=history, completer=completer)
 
     while True:
         try:
@@ -1271,8 +1499,9 @@ def interactive_mode():
                     Panel.fit(
                         "[cyan]Available Commands:[/cyan]\n\n"
                         "  [green]new[/green] - Create new note\n"
-                        "  [green]list[/green] - List all notes\n"
-                        "  [green]open <ID>[/green] - Open a note by ID\n"
+                        "  [green]list[/green] - List all notes (--preview, --sort, --tag)\n"
+                        "  [green]recent[/green] - Show recent notes\n"
+                        "  [green]open <ID|title>[/green] - Open a note by ID or title\n"
                         "  [green]delete <ID>[/green] - Delete a note by ID\n"
                         "  [green]import <file>[/green] - Import file (.md, .txt, .rtf, .pdf, .docx)\n"
                         "  [green]enhance <ID>[/green] - Enhance note with AI\n"
@@ -1283,8 +1512,8 @@ def interactive_mode():
                         "  [green]history [N][/green] - Show last N commands (default: 20)\n"
                         "  [green]help or ?[/green] - Show this help\n"
                         "  [green]exit[/green] - Exit\n\n"
-                        "[dim]Type text to search for notes and get their IDs[/dim]\n"
-                        "[dim]Use Up/Down arrows to navigate command history[/dim]",
+                        "[dim]Type text to search for notes[/dim]\n"
+                        "[dim]Use Tab to autocomplete note titles[/dim]",
                         title="GPGNotes Help",
                     )
                 )
@@ -1293,10 +1522,13 @@ def interactive_mode():
                 ctx.invoke(new)
             elif command == "list":
                 ctx = click.Context(list)
-                ctx.invoke(list)
+                ctx.invoke(list, preview=False, sort="modified", limit=50, tag=None)
+            elif command == "recent":
+                ctx = click.Context(list)
+                ctx.invoke(list, preview=False, sort="modified", limit=5, tag=None)
             elif command == "open" and args:
                 ctx = click.Context(open)
-                ctx.invoke(open, note_id=args)
+                ctx.invoke(open, note_id=args, last=False)
             elif command == "delete" and args:
                 ctx = click.Context(delete)
                 ctx.invoke(delete, note_id=args, yes=False)
@@ -1316,7 +1548,7 @@ def interactive_mode():
                 ctx.invoke(enhance, note_id=args, instructions=None, quick=False)
             elif command == "export" and args:
                 ctx = click.Context(export)
-                ctx.invoke(export, note_id=args, format="markdown", output=None)
+                ctx.invoke(export, note_id=args, format="markdown", output=None, plain=False)
             elif command == "sync":
                 ctx = click.Context(sync)
                 ctx.invoke(sync)
