@@ -102,7 +102,7 @@ class GitSync:
             for file_path in conflicted:
                 full_path = self.notes_dir / file_path
 
-                if not full_path.exists() or not str(file_path).endswith('.md.gpg'):
+                if not full_path.exists() or not str(file_path).endswith(".md.gpg"):
                     # Skip non-note files or deleted files
                     continue
 

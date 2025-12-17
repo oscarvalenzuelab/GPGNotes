@@ -5,6 +5,26 @@ All notable changes to GPGNotes will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] - 2025-12-16
+
+### Added
+
+- **Auto-sync Before Opening**: `notes open` now syncs before opening to get the latest version of the note from remote.
+- **Auto-sync After Editing**: Changes are automatically synced after editing a note, ensuring immediate backup.
+- **Automatic Conflict Resolution**: Conflicts during pull/rebase are now resolved automatically by keeping the local version.
+- **Index Rebuild After Sync**: Search index is automatically rebuilt after pulling notes to ensure all notes are searchable.
+
+### Fixed
+
+- **Divergent Branches Error**: Fixed "fatal: Need to specify how to reconcile divergent branches" by configuring Git to use rebase strategy with auto-stash.
+- **Concurrent Editing**: Improved handling of concurrent edits across multiple devices by automatically resolving conflicts.
+- **Failed Pushes After Conflicts**: Fixed push failures that occurred after pull conflicts by completing rebase automatically.
+
+### Changed
+
+- Git pull now uses rebase strategy instead of merge to maintain cleaner history.
+- Local changes are automatically stashed and reapplied during pull operations.
+
 ## [0.1.1] - 2025-12-16
 
 ### Fixed
@@ -79,5 +99,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sync requires Git remote to be configured manually
 - Initial sync from existing remote requires `--allow-unrelated-histories` (handled automatically)
 
+[0.1.2]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.1.2
 [0.1.1]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.1.1
 [0.1.0]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.1.0
