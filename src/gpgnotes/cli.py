@@ -11,17 +11,85 @@ from prompt_toolkit import PromptSession, prompt
 from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.history import FileHistory
 from rich.console import Console
+from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.table import Table
 
 from .config import Config
+from .history import VersionHistory, parse_diff_output
 from .index import SearchIndex
 from .note import Note
 from .storage import Storage
 from .sync import GitSync
 from .tagging import AutoTagger
+from .templates import TemplateEngine, TemplateManager
 
 console = Console()
+
+
+def _paginate_results(items, page_size=20):
+    """Interactive pagination for result lists.
+
+    Yields pages of items and handles user navigation.
+    Returns the action chosen by user: 'next', 'prev', 'quit', or page number.
+    """
+    total_items = len(items)
+    total_pages = (total_items + page_size - 1) // page_size
+    current_page = 1
+
+    while True:
+        # Calculate slice for current page
+        start_idx = (current_page - 1) * page_size
+        end_idx = min(start_idx + page_size, total_items)
+        page_items = items[start_idx:end_idx]
+
+        # Yield the current page
+        yield {
+            "items": page_items,
+            "page": current_page,
+            "total_pages": total_pages,
+            "total_items": total_items,
+            "start_idx": start_idx,
+            "end_idx": end_idx,
+        }
+
+        # Check if we need pagination controls
+        if total_pages <= 1:
+            break
+
+        # Show pagination controls
+        console.print(
+            f"\n[dim]Page {current_page} of {total_pages} ({start_idx + 1}-{end_idx} of {total_items} items)[/dim]"
+        )
+        console.print(
+            "[dim]Commands: [n]ext, [p]rev, [number] to jump to page, [q]uit pagination[/dim]"
+        )
+
+        try:
+            choice = prompt("\nAction: ").strip().lower()
+
+            if choice in ["q", "quit", ""]:
+                break
+            elif choice in ["n", "next"]:
+                if current_page < total_pages:
+                    current_page += 1
+                else:
+                    console.print("[yellow]Already on last page[/yellow]")
+            elif choice in ["p", "prev", "previous"]:
+                if current_page > 1:
+                    current_page -= 1
+                else:
+                    console.print("[yellow]Already on first page[/yellow]")
+            elif choice.isdigit():
+                page_num = int(choice)
+                if 1 <= page_num <= total_pages:
+                    current_page = page_num
+                else:
+                    console.print(f"[yellow]Invalid page number. Enter 1-{total_pages}[/yellow]")
+            else:
+                console.print("[yellow]Invalid command. Use n, p, number, or q[/yellow]")
+        except (KeyboardInterrupt, EOFError):
+            break
 
 
 def _sync_in_background(config: Config, message: str):
@@ -348,8 +416,16 @@ You're ready to start! Try:
 @main.command()
 @click.argument("title", required=False)
 @click.option("--tags", "-t", help="Comma-separated tags")
-def new(title, tags):
-    """Create a new note."""
+@click.option("--template", help="Template to use")
+@click.option("--var", multiple=True, help="Template variable in key=value format")
+def new(title, tags, template, var):
+    """Create a new note, optionally from a template.
+
+    Examples:
+        notes new "Team Meeting"                    # Blank note
+        notes new "Sprint Planning" --template meeting --var project="Backend"
+        notes new "Bug Fix" --template bug
+    """
     config = Config()
 
     # Check if GPG key is configured
@@ -368,8 +444,38 @@ def new(title, tags):
     # Parse tags
     tag_list = [t.strip() for t in tags.split(",")] if tags else []
 
-    # Create note with minimal content
-    note = Note(title=title, content="", tags=tag_list)
+    # Initialize template manager
+    templates_dir = config.config_dir / "templates"
+    template_mgr = TemplateManager(templates_dir)
+
+    # Handle template if specified
+    content = ""
+    if template:
+        template_content = template_mgr.get_template(template)
+        if not template_content:
+            console.print(f"[red]Error: Template '{template}' not found[/red]")
+            console.print("[yellow]Use 'notes templates' to list available templates[/yellow]")
+            sys.exit(1)
+
+        # Parse variables
+        variables = TemplateEngine.parse_variables(list(var))
+        variables["title"] = title
+
+        # Check for missing required variables
+        required_vars = TemplateEngine.extract_variables(template_content)
+        missing_vars = [v for v in required_vars if v not in variables]
+
+        # Prompt for missing variables
+        for var_name in missing_vars:
+            value = prompt(f"Enter value for '{var_name}' [optional]: ").strip()
+            if value:
+                variables[var_name] = value
+
+        # Render template
+        content = TemplateEngine.render(template_content, variables)
+
+    # Create note
+    note = Note(title=title, content=content, tags=tag_list)
 
     # Save and get path
     storage = Storage(config)
@@ -407,8 +513,10 @@ def new(title, tags):
 @main.command()
 @click.argument("query", required=False)
 @click.option("--tag", "-t", help="Search by tag")
-def search(query, tag):
-    """Search notes."""
+@click.option("--page-size", "-n", default=20, help="Items per page (default: 20)")
+@click.option("--no-pagination", is_flag=True, help="Disable pagination, show all results")
+def search(query, tag, page_size, no_pagination):
+    """Search notes with pagination."""
     config = Config()
     index = SearchIndex(config)
 
@@ -430,19 +538,30 @@ def search(query, tag):
             index.close()
             return
 
-        # Load and display notes
+        # Load notes
         storage = Storage(config)
-        table = Table(title="Search Results")
-        table.add_column("ID", style="cyan", width=14)
-        table.add_column("Title", style="green", width=25)
-        table.add_column("Preview", style="white", width=35)
-        table.add_column("Tags", style="blue", width=15)
-        table.add_column("Modified", style="yellow", width=16)
-
-        for file_path in results[:20]:
+        notes_data = []
+        for file_path in results:
             try:
                 note = storage.load_note(Path(file_path))
+                notes_data.append(note)
+            except Exception:
+                continue
 
+        if not notes_data:
+            console.print("[yellow]No notes found[/yellow]")
+            return
+
+        def build_search_table(notes_page, table_title):
+            """Build a table for a page of search results."""
+            table = Table(title=table_title)
+            table.add_column("ID", style="cyan", width=14)
+            table.add_column("Title", style="green", width=25)
+            table.add_column("Preview", style="white", width=35)
+            table.add_column("Tags", style="blue", width=15)
+            table.add_column("Modified", style="yellow", width=16)
+
+            for note in notes_page:
                 # Create content preview (first 80 chars)
                 preview = note.content.replace("\n", " ").strip()
                 if len(preview) > 80:
@@ -455,13 +574,33 @@ def search(query, tag):
                     ", ".join(note.tags[:2]) + ("..." if len(note.tags) > 2 else ""),
                     note.modified.strftime("%Y-%m-%d %H:%M"),
                 )
-            except Exception:
-                continue
 
-        console.print(table)
+            return table
 
-        if len(results) > 20:
-            console.print(f"\n[dim]Showing 20 of {len(results)} results[/dim]")
+        # Build title
+        if query:
+            table_title = f"Search: '{query}'"
+        elif tag:
+            table_title = f"Tagged: '{tag}'"
+        else:
+            table_title = "All Notes"
+
+        # Use pagination or show all
+        if no_pagination or len(notes_data) <= page_size:
+            # Show all results
+            table = build_search_table(notes_data, table_title)
+            console.print(table)
+        else:
+            # Use pagination
+            paginator = _paginate_results(notes_data, page_size)
+            for page_info in paginator:
+                # Clear screen for better UX
+                console.clear()
+
+                # Build and display table for current page
+                page_title = f"{table_title} (Page {page_info['page']}/{page_info['total_pages']})"
+                table = build_search_table(page_info["items"], page_title)
+                console.print(table)
 
         console.print("\n[dim]Tip: Use 'notes open <ID>' to open a note[/dim]")
 
@@ -623,17 +762,19 @@ def _find_note_by_title(storage: Storage, query: str) -> Optional[Path]:
     default="modified",
     help="Sort order (default: modified)",
 )
-@click.option("--limit", "-n", default=50, help="Maximum notes to show (default: 50)")
+@click.option("--page-size", "-n", default=20, help="Items per page (default: 20)")
 @click.option("--tag", "-t", help="Filter by tag")
-def list(preview, sort, limit, tag):
+@click.option("--no-pagination", is_flag=True, help="Disable pagination, show all results")
+def list(preview, sort, page_size, tag, no_pagination):
     """List all notes with optional filtering and sorting.
 
     Examples:
-        notes list                    # Default: sorted by modified
+        notes list                    # Default: sorted by modified, paginated
         notes list --preview          # Show content preview
         notes list --sort title       # Sort alphabetically
         notes list --tag work         # Filter by tag
-        notes list -n 10              # Show only 10 notes
+        notes list -n 10              # Show 10 items per page
+        notes list --no-pagination    # Show all results at once
     """
     config = Config()
     storage = Storage(config)
@@ -672,57 +813,69 @@ def list(preview, sort, limit, tag):
         elif sort == "title":
             notes_data.sort(key=lambda n: n.title.lower())
 
-        # Apply limit
-        total_count = len(notes_data)
-        notes_data = notes_data[:limit]
-
-        # Build table
-        title = "All Notes"
-        if tag:
-            title = f"Notes tagged '{tag}'"
-
-        table = Table(title=title)
-        table.add_column("ID", style="cyan", width=14, no_wrap=True)
-        title_width = 30 if preview else 45
-        tags_width = 18 if preview else 25
-        table.add_column("Title", style="green", width=title_width, no_wrap=True)
-        table.add_column("Tags", style="blue", width=tags_width, no_wrap=True)
-        table.add_column("Modified", style="yellow", width=16, no_wrap=True)
-        if preview:
-            table.add_column("Preview", style="dim", width=35, no_wrap=True)
-
-        for note in notes_data:
-            # Truncate title and tags to fit columns
-            title_text = note.title
-            if len(title_text) > title_width - 3:
-                title_text = title_text[: title_width - 3] + "..."
-
-            tags_text = ", ".join(note.tags[:3])
-            if len(tags_text) > tags_width - 3:
-                tags_text = tags_text[: tags_width - 3] + "..."
-
-            row = [
-                note.note_id,
-                title_text,
-                tags_text,
-                note.modified.strftime("%Y-%m-%d %H:%M"),
-            ]
+        def build_table(notes_page, table_title):
+            """Build a table for a page of notes."""
+            table = Table(title=table_title)
+            table.add_column("ID", style="cyan", width=14, no_wrap=True)
+            title_width = 30 if preview else 45
+            tags_width = 18 if preview else 25
+            table.add_column("Title", style="green", width=title_width, no_wrap=True)
+            table.add_column("Tags", style="blue", width=tags_width, no_wrap=True)
+            table.add_column("Modified", style="yellow", width=16, no_wrap=True)
             if preview:
-                # Get first non-empty line of content
-                first_line = ""
-                for line in note.content.split("\n"):
-                    line = line.strip()
-                    if line and not line.startswith("#"):
-                        first_line = line[:32] + "..." if len(line) > 32 else line
-                        break
-                row.append(first_line)
+                table.add_column("Preview", style="dim", width=35, no_wrap=True)
 
-            table.add_row(*row)
+            for note in notes_page:
+                # Truncate title and tags to fit columns
+                title_text = note.title
+                if len(title_text) > title_width - 3:
+                    title_text = title_text[: title_width - 3] + "..."
 
-        console.print(table)
+                tags_text = ", ".join(note.tags[:3])
+                if len(tags_text) > tags_width - 3:
+                    tags_text = tags_text[: tags_width - 3] + "..."
 
-        if total_count > limit:
-            console.print(f"\n[dim]Showing {limit} of {total_count} notes[/dim]")
+                row = [
+                    note.note_id,
+                    title_text,
+                    tags_text,
+                    note.modified.strftime("%Y-%m-%d %H:%M"),
+                ]
+                if preview:
+                    # Get first non-empty line of content
+                    first_line = ""
+                    for line in note.content.split("\n"):
+                        line = line.strip()
+                        if line and not line.startswith("#"):
+                            first_line = line[:32] + "..." if len(line) > 32 else line
+                            break
+                    row.append(first_line)
+
+                table.add_row(*row)
+
+            return table
+
+        # Build title
+        table_title = "All Notes"
+        if tag:
+            table_title = f"Notes tagged '{tag}'"
+
+        # Use pagination or show all
+        if no_pagination or len(notes_data) <= page_size:
+            # Show all results
+            table = build_table(notes_data, table_title)
+            console.print(table)
+        else:
+            # Use pagination
+            paginator = _paginate_results(notes_data, page_size)
+            for page_info in paginator:
+                # Clear screen for better UX (optional)
+                console.clear()
+
+                # Build and display table for current page
+                page_title = f"{table_title} (Page {page_info['page']}/{page_info['total_pages']})"
+                table = build_table(page_info["items"], page_title)
+                console.print(table)
 
         console.print("\n[dim]Tip: Use 'notes open <ID>' or 'notes open <title>' to open[/dim]")
 
@@ -741,7 +894,7 @@ def recent(limit):
     """
     # Delegate to list command with defaults
     ctx = click.Context(list)
-    ctx.invoke(list, preview=False, sort="modified", limit=limit, tag=None)
+    ctx.invoke(list, preview=False, sort="modified", page_size=limit, tag=None, no_pagination=True)
 
 
 @main.command()
@@ -882,6 +1035,11 @@ def sync():
 @click.option("--auto-sync/--no-auto-sync", default=None, help="Enable/disable auto-sync")
 @click.option("--auto-tag/--no-auto-tag", default=None, help="Enable/disable auto-tagging")
 @click.option(
+    "--render-preview/--no-render-preview",
+    default=None,
+    help="Enable/disable markdown rendering by default",
+)
+@click.option(
     "--llm-provider",
     help="Set LLM provider (openai, claude, ollama)",
 )
@@ -889,7 +1047,16 @@ def sync():
 @click.option("--llm-key", help="Set LLM API key (encrypted with GPG)")
 @click.option("--show", is_flag=True, help="Show current configuration")
 def config(
-    editor, git_remote, gpg_key, auto_sync, auto_tag, llm_provider, llm_model, llm_key, show
+    editor,
+    git_remote,
+    gpg_key,
+    auto_sync,
+    auto_tag,
+    render_preview,
+    llm_provider,
+    llm_model,
+    llm_key,
+    show,
 ):
     """Configure GPGNotes."""
     cfg = Config()
@@ -918,6 +1085,7 @@ Git Remote: {cfg.get("git_remote") or "[dim]not configured[/dim]"}
 GPG Key: {cfg.get("gpg_key") or "[dim]not configured[/dim]"}
 Auto-sync: {"[green]enabled[/green]" if cfg.get("auto_sync") else "[red]disabled[/red]"}
 Auto-tag: {"[green]enabled[/green]" if cfg.get("auto_tag") else "[red]disabled[/red]"}
+Render Preview: {"[green]enabled[/green]" if cfg.get("render_preview") else "[red]disabled[/red]"}
 
 [bold]LLM Enhancement:[/bold]
 Provider: {llm_prov}
@@ -971,6 +1139,11 @@ Secrets file: {cfg._get_secrets_path()}
         cfg.set("auto_tag", auto_tag)
         status = "enabled" if auto_tag else "disabled"
         console.print(f"[green]✓[/green] Auto-tagging {status}")
+
+    if render_preview is not None:
+        cfg.set("render_preview", render_preview)
+        status = "enabled" if render_preview else "disabled"
+        console.print(f"[green]✓[/green] Markdown rendering {status}")
 
     if llm_provider:
         valid_providers = ["openai", "claude", "ollama"]
@@ -1031,6 +1204,7 @@ Secrets file: {cfg._get_secrets_path()}
             gpg_key,
             auto_sync is not None,
             auto_tag is not None,
+            render_preview is not None,
             llm_provider,
             llm_model,
             llm_key,
@@ -1189,21 +1363,22 @@ def export(note_id, format, output, plain):
 
 
 @main.command(name="import")
-@click.argument("files", nargs=-1, required=True, type=click.Path(exists=True))
-@click.option("--title", "-t", help="Custom title for the imported note (single file only)")
+@click.argument("sources", nargs=-1, required=True)
+@click.option("--title", "-t", help="Custom title for the imported note (single source only)")
 @click.option("--tags", help="Comma-separated tags to add")
-def import_file(files, title, tags):
-    """Import external files as encrypted notes.
+def import_file(sources, title, tags):
+    """Import external files or URLs as encrypted notes.
 
-    Supported formats: .md, .txt, .rtf, .pdf, .docx
+    Supported formats: .md, .txt, .rtf, .pdf, .docx, URLs
 
     Examples:
         notes import document.pdf
         notes import report.docx --title "Q4 Report" --tags work,quarterly
+        notes import https://example.com/article --title "Article"
         notes import *.md
     """
     from .importer import ImportError as ImporterError
-    from .importer import MissingDependencyError
+    from .importer import MissingDependencyError, import_url
     from .importer import import_file as do_import
     from .llm import sanitize_for_gpg
 
@@ -1217,9 +1392,14 @@ def import_file(files, title, tags):
     # Parse tags
     tag_list = [t.strip() for t in tags.split(",")] if tags else []
 
-    # Validate title option with multiple files
-    if title and len(files) > 1:
-        console.print("[yellow]Warning: --title ignored when importing multiple files[/yellow]")
+    # Add web-clip tag if importing URL
+    if any(source.startswith(("http://", "https://")) for source in sources):
+        if "web-clip" not in tag_list:
+            tag_list.append("web-clip")
+
+    # Validate title option with multiple sources
+    if title and len(sources) > 1:
+        console.print("[yellow]Warning: --title ignored when importing multiple sources[/yellow]")
         title = None
 
     storage = Storage(config)
@@ -1230,16 +1410,35 @@ def import_file(files, title, tags):
     failed_count = 0
 
     try:
-        for file_path_str in files:
-            file_path = Path(file_path_str)
-
+        for source_str in sources:
             try:
-                # Import the file
-                with console.status(f"[bold blue]Importing {file_path.name}..."):
-                    note_title, content = do_import(file_path, title)
-                    # Sanitize content for GPG (convert smart quotes, etc.)
-                    content = sanitize_for_gpg(content)
-                    note_title = sanitize_for_gpg(note_title)
+                # Check if it's a URL
+                if source_str.startswith(("http://", "https://")):
+                    # Import URL
+                    with console.status(f"[bold blue]Clipping {source_str}..."):
+                        note_title, content = import_url(source_str, title)
+                        # Sanitize content for GPG
+                        content = sanitize_for_gpg(content)
+                        note_title = sanitize_for_gpg(note_title)
+
+                    source_name = source_str
+                else:
+                    # Import file
+                    file_path = Path(source_str)
+
+                    # Check if file exists
+                    if not file_path.exists():
+                        console.print(f"[red]✗[/red] File not found: {source_str}")
+                        failed_count += 1
+                        continue
+
+                    with console.status(f"[bold blue]Importing {file_path.name}..."):
+                        note_title, content = do_import(file_path, title)
+                        # Sanitize content for GPG (convert smart quotes, etc.)
+                        content = sanitize_for_gpg(content)
+                        note_title = sanitize_for_gpg(note_title)
+
+                    source_name = file_path.name
 
                 # Create note
                 note = Note(title=note_title, content=content, tags=tag_list.copy())
@@ -1253,34 +1452,51 @@ def import_file(files, title, tags):
                 storage.save_note(note)
                 index.add_note(note)
 
-                console.print(f"[green]✓[/green] Imported: {file_path.name} → {note.title}")
+                console.print(f"[green]✓[/green] Imported: {source_name} → {note.title}")
                 if note.tags:
                     console.print(f"  [blue]Tags:[/blue] {', '.join(note.tags)}")
 
                 imported_count += 1
 
             except MissingDependencyError as e:
-                console.print(f"[red]✗[/red] {file_path.name}: {e}")
+                console.print(f"[red]✗[/red] {source_str}: {e}")
                 failed_count += 1
             except ImporterError as e:
-                console.print(f"[red]✗[/red] {file_path.name}: {e}")
+                console.print(f"[red]✗[/red] {source_str}: {e}")
                 failed_count += 1
             except Exception as e:
-                console.print(f"[red]✗[/red] {file_path.name}: {e}")
+                console.print(f"[red]✗[/red] {source_str}: {e}")
                 failed_count += 1
 
         # Summary
-        if len(files) > 1:
+        if len(sources) > 1:
             console.print(
                 f"\n[cyan]Summary:[/cyan] {imported_count} imported, {failed_count} failed"
             )
 
         # Sync if enabled
         if imported_count > 0 and config.get("auto_sync"):
-            _sync_in_background(config, f"Import {imported_count} file(s)")
+            _sync_in_background(config, f"Import {imported_count} item(s)")
 
     finally:
         index.close()
+
+
+@main.command()
+@click.argument("url")
+@click.option("--title", "-t", help="Custom title for the note")
+@click.option("--tags", help="Comma-separated tags to add")
+def clip(url, title, tags):
+    """Clip a web page as a note (alias for 'import <url>').
+
+    Examples:
+        notes clip https://example.com/article
+        notes clip https://example.com/article --title "Great Article"
+        notes clip https://example.com/article --tags reading,tech
+    """
+    # Delegate to import command
+    ctx = click.Context(import_file)
+    ctx.invoke(import_file, sources=(url,), title=title, tags=tags)
 
 
 @main.command()
@@ -1378,6 +1594,578 @@ def enhance(note_id, instructions, quick):
         index.close()
 
 
+@main.group()
+def template():
+    """Manage note templates."""
+    pass
+
+
+@template.command("list")
+def template_list():
+    """List all available templates."""
+    config = Config()
+    templates_dir = config.config_dir / "templates"
+    template_mgr = TemplateManager(templates_dir)
+
+    templates = template_mgr.list_templates()
+
+    if not templates["builtin"] and not templates["custom"]:
+        console.print("[yellow]No templates found[/yellow]")
+        return
+
+    # Display built-in templates
+    if templates["builtin"]:
+        console.print("\n[bold cyan]Built-in Templates:[/bold cyan]")
+        for name in templates["builtin"]:
+            console.print(f"  • {name}")
+
+    # Display custom templates
+    if templates["custom"]:
+        console.print("\n[bold cyan]Custom Templates:[/bold cyan]")
+        for name in templates["custom"]:
+            console.print(f"  • {name}")
+
+    console.print(
+        "\n[dim]Use 'notes new \"Title\" --template <name>' to create a note from a template[/dim]"
+    )
+
+
+@template.command("show")
+@click.argument("name")
+def template_show(name):
+    """Show template content."""
+    config = Config()
+    templates_dir = config.config_dir / "templates"
+    template_mgr = TemplateManager(templates_dir)
+
+    content = template_mgr.get_template(name)
+    if not content:
+        console.print(f"[red]Error: Template '{name}' not found[/red]")
+        return
+
+    # Extract variables
+    variables = TemplateEngine.extract_variables(content)
+
+    console.print(f"\n[bold cyan]Template: {name}[/bold cyan]")
+    if variables:
+        console.print(f"[dim]Variables: {', '.join(variables)}[/dim]\n")
+    else:
+        console.print("[dim]No custom variables[/dim]\n")
+
+    console.print(content)
+
+
+@template.command("create")
+@click.argument("name")
+@click.option("--from-note", help="Create template from existing note ID")
+def template_create(name, from_note):
+    """Create a new custom template."""
+    config = Config()
+    templates_dir = config.config_dir / "templates"
+    template_mgr = TemplateManager(templates_dir)
+
+    # Check if template already exists
+    if template_mgr.template_exists(name):
+        console.print(f"[red]Error: Template '{name}' already exists[/red]")
+        console.print("[yellow]Use 'notes template edit' to modify existing templates[/yellow]")
+        return
+
+    if from_note:
+        # Create template from existing note
+        storage = Storage(config)
+        try:
+            file_path = storage.find_by_id(from_note)
+            note = storage.load_note(file_path)
+
+            # Convert note to template format
+            content = f"""---
+title: "{{{{title}}}}"
+tags: {note.tags}
+---
+
+{note.content}
+"""
+            template_mgr.save_template(name, content)
+            console.print(f"[green]✓[/green] Template '{name}' created from note {from_note}")
+
+        except FileNotFoundError:
+            console.print(f"[red]Error: Note with ID '{from_note}' not found[/red]")
+            return
+    else:
+        # Create template interactively
+        console.print(f"[cyan]Creating template '{name}'[/cyan]")
+        console.print("[dim]Enter template content (Ctrl+D or Ctrl+Z when done):[/dim]\n")
+
+        try:
+            lines = []
+            while True:
+                try:
+                    line = input()
+                    lines.append(line)
+                except EOFError:
+                    break
+
+            content = "\n".join(lines)
+
+            if not content.strip():
+                console.print("[yellow]Template content cannot be empty[/yellow]")
+                return
+
+            template_mgr.save_template(name, content)
+            console.print(f"\n[green]✓[/green] Template '{name}' created")
+
+            # Show variables found
+            variables = TemplateEngine.extract_variables(content)
+            if variables:
+                console.print(f"[blue]Variables found:[/blue] {', '.join(variables)}")
+
+        except KeyboardInterrupt:
+            console.print("\n[yellow]Template creation cancelled[/yellow]")
+
+
+@template.command("edit")
+@click.argument("name")
+def template_edit(name):
+    """Edit a template."""
+    config = Config()
+    templates_dir = config.config_dir / "templates"
+    template_mgr = TemplateManager(templates_dir)
+
+    template_path = template_mgr.get_template_path(name)
+    if not template_path:
+        console.print(f"[red]Error: Template '{name}' not found[/red]")
+        return
+
+    # Check if it's a built-in template
+    if template_path.parent.name == "builtin":
+        console.print(f"[yellow]Cannot edit built-in template '{name}'[/yellow]")
+        console.print(
+            f"[dim]Tip: Create a custom version with 'notes template create {name} --from-note <id>'[/dim]"
+        )
+        return
+
+    # Open in editor
+    import subprocess
+
+    editor = config.get("editor", "nano")
+    try:
+        subprocess.run([editor, str(template_path)], check=True)
+        console.print(f"[green]✓[/green] Template '{name}' updated")
+    except subprocess.CalledProcessError:
+        console.print("[red]Error editing template[/red]")
+    except FileNotFoundError:
+        console.print(f"[red]Editor '{editor}' not found[/red]")
+
+
+@template.command("delete")
+@click.argument("name")
+@click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
+def template_delete(name, yes):
+    """Delete a custom template."""
+    config = Config()
+    templates_dir = config.config_dir / "templates"
+    template_mgr = TemplateManager(templates_dir)
+
+    try:
+        # Confirm deletion
+        if not yes:
+            confirm = prompt(f"Delete template '{name}'? Type 'yes' to confirm: ")
+            if confirm.lower() != "yes":
+                console.print("[yellow]Deletion cancelled[/yellow]")
+                return
+
+        if template_mgr.delete_template(name):
+            console.print(f"[green]✓[/green] Template '{name}' deleted")
+        else:
+            console.print(f"[red]Error: Template '{name}' not found[/red]")
+
+    except ValueError as e:
+        console.print(f"[red]Error:[/red] {e}")
+
+
+# Alias for template list
+@main.command("templates")
+def templates_alias():
+    """List all available templates (alias for 'template list')."""
+    ctx = click.Context(template_list)
+    ctx.invoke(template_list)
+
+
+@main.command("history")
+@click.argument("note_id")
+@click.option("--verbose", "-v", is_flag=True, help="Show detailed history")
+def history_cmd(note_id, verbose):
+    """Show version history for a note.
+
+    Examples:
+        notes history 20251216120000         # Show history
+        notes history 20251216120000 -v      # Show verbose history
+    """
+    config = Config()
+    storage = Storage(config)
+
+    try:
+        # Find note
+        file_path = storage.find_by_id(note_id)
+        note = storage.load_note(file_path)
+
+        # Get version history
+        history_mgr = VersionHistory(config.notes_dir)
+        versions = history_mgr.get_history(file_path)
+
+        if not versions:
+            console.print(f"[yellow]No history found for note '{note.title}'[/yellow]")
+            console.print("[dim]Note may not be committed to Git yet[/dim]")
+            return
+
+        # Display history
+        console.print(f"\n[bold cyan]Version History:[/bold cyan] {note.title}\n")
+
+        table = Table(show_header=True)
+        table.add_column("#", style="cyan", width=4)
+        table.add_column("Date", style="yellow", width=19)
+        table.add_column("Message", style="white", width=50)
+        if verbose:
+            table.add_column("Commit", style="dim", width=8)
+            table.add_column("Author", style="green", width=20)
+
+        for version in versions:
+            row = [
+                str(version.number) + (" *" if version.is_current else ""),
+                version.date.strftime("%Y-%m-%d %H:%M:%S"),
+                version.message[:47] + "..." if len(version.message) > 47 else version.message,
+            ]
+            if verbose:
+                row.append(version.commit)
+                row.append(
+                    version.author[:17] + "..." if len(version.author) > 17 else version.author
+                )
+
+            table.add_row(*row)
+
+        console.print(table)
+        console.print(f"\n[dim]Total versions: {len(versions)}[/dim]")
+        console.print("[dim]* = current version[/dim]\n")
+        console.print(f"[dim]Use 'notes show {note_id} -v N' to view version N[/dim]")
+        console.print(f"[dim]Use 'notes diff {note_id}' to compare versions[/dim]")
+        console.print(f"[dim]Use 'notes restore {note_id} -v N' to restore version N[/dim]")
+
+    except FileNotFoundError:
+        console.print(f"[red]Error: Note with ID '{note_id}' not found[/red]")
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+
+
+@main.command("show")
+@click.argument("note_id")
+@click.option("--version", "-v", type=int, help="Show specific version")
+@click.option("--at", help="Show version at date (YYYY-MM-DD)")
+@click.option("--render", "-r", is_flag=True, help="Render markdown with formatting")
+@click.option("--raw", is_flag=True, help="Force raw markdown output")
+def show_cmd(note_id, version, at, render, raw):
+    """Show note content, optionally at specific version.
+
+    Examples:
+        notes show 20251216120000              # Show current version
+        notes show 20251216120000 -v 3         # Show version 3
+        notes show 20251216120000 --at 2025-12-15
+        notes show 20251216120000 --render     # Show with markdown rendering
+    """
+    config = Config()
+    storage = Storage(config)
+
+    try:
+        # Find note
+        file_path = storage.find_by_id(note_id)
+        note = storage.load_note(file_path)
+
+        # Get version if specified
+        content = None
+        title_suffix = ""
+
+        if version or at:
+            history_mgr = VersionHistory(config.notes_dir)
+            commit = None
+
+            if version:
+                commit = history_mgr.get_version_by_number(file_path, version)
+                if not commit:
+                    console.print(f"[red]Error: Version {version} not found[/red]")
+                    return
+                title_suffix = f" [dim](Version {version})[/dim]"
+            elif at:
+                commit = history_mgr.get_file_at_date(file_path, at)
+                if not commit:
+                    console.print(f"[red]Error: No version found at date {at}[/red]")
+                    return
+                title_suffix = f" [dim](Version at {at})[/dim]"
+
+            # Get historical content
+            content_bytes = history_mgr.get_version_content(file_path, commit)
+
+            # Decrypt if encrypted
+            if file_path.suffix == ".gpg":
+                import tempfile
+
+                from .encryption import Encryption
+
+                encryption = Encryption(config.get("gpg_key"))
+                with tempfile.NamedTemporaryFile(suffix=".gpg", delete=False) as tmp:
+                    tmp.write(content_bytes)
+                    tmp_path = Path(tmp.name)
+
+                try:
+                    content = encryption.decrypt(tmp_path)
+                finally:
+                    tmp_path.unlink()
+            else:
+                content = content_bytes.decode("utf-8")
+        else:
+            # Use current content
+            content = note.content
+
+        # Determine if we should render
+        should_render = render or (config.get("render_preview") and not raw)
+
+        if should_render:
+            # Render with markdown
+            console.print(
+                Panel(
+                    f"[bold cyan]{note.title}[/bold cyan]{title_suffix}",
+                    subtitle=f"Modified: {note.modified.strftime('%Y-%m-%d %H:%M')}"
+                    if not title_suffix
+                    else None,
+                    border_style="cyan",
+                )
+            )
+            console.print()
+            md = Markdown(content)
+            console.print(md)
+        else:
+            # Raw output
+            console.print(f"\n[bold cyan]{note.title}[/bold cyan]{title_suffix}\n")
+            console.print(content)
+
+    except FileNotFoundError:
+        console.print(f"[red]Error: Note with ID '{note_id}' not found[/red]")
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+
+
+@main.command("diff")
+@click.argument("note_id")
+@click.option("--from-ver", "-f", type=int, help="From version (default: previous)")
+@click.option("--to-ver", "-t", type=int, help="To version (default: current)")
+def diff_cmd(note_id, from_ver, to_ver):
+    """Compare note versions.
+
+    Examples:
+        notes diff 20251216120000              # Compare current with previous
+        notes diff 20251216120000 -f 2 -t 4    # Compare version 2 to 4
+    """
+    config = Config()
+    storage = Storage(config)
+
+    try:
+        # Find note
+        file_path = storage.find_by_id(note_id)
+        note = storage.load_note(file_path)
+
+        history_mgr = VersionHistory(config.notes_dir)
+        versions = history_mgr.get_history(file_path)
+
+        if len(versions) < 2:
+            console.print("[yellow]Note has only one version, nothing to compare[/yellow]")
+            return
+
+        # Determine versions to compare
+        if from_ver is None and to_ver is None:
+            # Default: compare current with previous
+            from_commit = versions[1].commit
+            to_commit = versions[0].commit
+            from_label = f"Version {versions[1].number}"
+            to_label = f"Version {versions[0].number} (current)"
+        else:
+            from_commit = history_mgr.get_version_by_number(
+                file_path, from_ver or versions[-1].number
+            )
+            to_commit = history_mgr.get_version_by_number(file_path, to_ver or versions[0].number)
+
+            if not from_commit or not to_commit:
+                console.print("[red]Error: Invalid version numbers[/red]")
+                return
+
+            from_label = f"Version {from_ver or versions[-1].number}"
+            to_label = f"Version {to_ver or versions[0].number}"
+
+        # Create decrypt function if needed
+        decrypt_func = None
+        if file_path.suffix == ".gpg":
+            import tempfile
+
+            from .encryption import Encryption
+
+            encryption = Encryption(config.get("gpg_key"))
+
+            def decrypt_func(content_bytes: bytes) -> str:
+                """Helper to decrypt content bytes."""
+                with tempfile.NamedTemporaryFile(suffix=".gpg", delete=False) as tmp:
+                    tmp.write(content_bytes)
+                    tmp_path = Path(tmp.name)
+
+                try:
+                    return encryption.decrypt(tmp_path)
+                finally:
+                    tmp_path.unlink()
+
+        # Get diff
+        diff_output = history_mgr.diff_versions(file_path, from_commit, to_commit, decrypt_func)
+
+        if not diff_output:
+            console.print("[yellow]No differences found[/yellow]")
+            return
+
+        # Parse and display diff
+        console.print(f"\n[bold cyan]Comparing:[/bold cyan] {note.title}")
+        console.print(f"[dim]{from_label} → {to_label}[/dim]\n")
+
+        parsed_diff = parse_diff_output(diff_output)
+        for change_type, line in parsed_diff:
+            if change_type == "add":
+                console.print(f"[green]+ {line}[/green]")
+            elif change_type == "del":
+                console.print(f"[red]- {line}[/red]")
+            elif change_type == "hdr":
+                console.print(f"[dim]{line}[/dim]")
+            else:
+                console.print(f"  {line}")
+
+    except FileNotFoundError:
+        console.print(f"[red]Error: Note with ID '{note_id}' not found[/red]")
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+
+
+@main.command("preview")
+@click.argument("note_id")
+def preview_cmd(note_id):
+    """Show note with markdown rendering (alias for 'show --render').
+
+    Examples:
+        notes preview 20251216120000
+    """
+    config = Config()
+    storage = Storage(config)
+
+    try:
+        # Find note
+        file_path = storage.find_by_id(note_id)
+        note = storage.load_note(file_path)
+
+        # Render with markdown
+        console.print(
+            Panel(
+                f"[bold cyan]{note.title}[/bold cyan]",
+                subtitle=f"Modified: {note.modified.strftime('%Y-%m-%d %H:%M')}",
+                border_style="cyan",
+            )
+        )
+        console.print()
+
+        # Render markdown content
+        md = Markdown(note.content)
+        console.print(md)
+
+        console.print(f"\n[dim]ID: {note.note_id}[/dim]")
+        if note.tags:
+            console.print(f"[dim]Tags: {', '.join(note.tags)}[/dim]")
+
+    except FileNotFoundError:
+        console.print(f"[red]Error: Note with ID '{note_id}' not found[/red]")
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+
+
+@main.command("restore")
+@click.argument("note_id")
+@click.option("--version", "-v", type=int, required=True, help="Version to restore")
+@click.option("--preview", is_flag=True, help="Preview version before restoring")
+def restore_cmd(note_id, version, preview):
+    """Restore note to a previous version (non-destructive).
+
+    Examples:
+        notes restore 20251216120000 -v 3          # Restore to version 3
+        notes restore 20251216120000 -v 3 --preview
+    """
+    config = Config()
+    storage = Storage(config)
+
+    try:
+        # Find note
+        file_path = storage.find_by_id(note_id)
+        note = storage.load_note(file_path)
+
+        history_mgr = VersionHistory(config.notes_dir)
+        commit = history_mgr.get_version_by_number(file_path, version)
+
+        if not commit:
+            console.print(f"[red]Error: Version {version} not found[/red]")
+            console.print("[dim]Use 'notes history <id>' to see available versions[/dim]")
+            return
+
+        # Get historical content
+        content_bytes = history_mgr.get_version_content(file_path, commit)
+
+        # Decrypt if encrypted
+        if file_path.suffix == ".gpg":
+            import tempfile
+
+            from .encryption import Encryption
+
+            encryption = Encryption(config.get("gpg_key"))
+            with tempfile.NamedTemporaryFile(suffix=".gpg", delete=False) as tmp:
+                tmp.write(content_bytes)
+                tmp_path = Path(tmp.name)
+
+            try:
+                content = encryption.decrypt(tmp_path)
+            finally:
+                tmp_path.unlink()
+        else:
+            content = content_bytes.decode("utf-8")
+
+        if preview:
+            # Just show the content
+            console.print(
+                f"\n[bold cyan]Preview:[/bold cyan] {note.title} [dim](Version {version})[/dim]\n"
+            )
+            console.print(content)
+            console.print(f"\n[dim]Use 'notes restore {note_id} -v {version}' to restore[/dim]")
+        else:
+            # Restore the version
+            note.content = content
+            storage.save_note(note)
+
+            # Re-index
+            index = SearchIndex(config)
+            index.add_note(note)
+            index.close()
+
+            # Sync if enabled
+            if config.get("auto_sync"):
+                _sync_in_background(config, f"Restore note '{note.title}' to version {version}")
+
+            console.print(f"[green]✓[/green] Note restored to version {version}")
+            console.print(
+                f"[dim]This created a new version. Use 'notes history {note_id}' to see it.[/dim]"
+            )
+
+    except FileNotFoundError:
+        console.print(f"[red]Error: Note with ID '{note_id}' not found[/red]")
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+
+
 class NotesCompleter(Completer):
     """Custom completer that provides note titles after certain commands."""
 
@@ -1388,8 +2176,10 @@ class NotesCompleter(Completer):
         "open",
         "delete",
         "import",
+        "clip",
         "enhance",
         "tags",
+        "templates",
         "export",
         "sync",
         "config",
@@ -1475,9 +2265,11 @@ def interactive_mode():
             "  [green]recent[/green] - Show recent notes\n"
             "  [green]open <ID|title>[/green] - Open a note\n"
             "  [green]delete <ID>[/green] - Delete a note\n"
-            "  [green]import <file>[/green] - Import a file as note\n"
+            "  [green]import <file|URL>[/green] - Import file/URL as note\n"
+            "  [green]clip <URL>[/green] - Clip web page as note\n"
             "  [green]enhance <ID>[/green] - Enhance note with AI\n"
             "  [green]tags[/green] - Show all tags\n"
+            "  [green]templates[/green] - List note templates\n"
             "  [green]export <ID>[/green] - Export a note\n"
             "  [green]sync[/green] - Sync with Git\n"
             "  [green]config[/green] - Configuration\n"
@@ -1519,9 +2311,11 @@ def interactive_mode():
                         "  [green]recent[/green] - Show recent notes\n"
                         "  [green]open <ID|title>[/green] - Open a note by ID or title\n"
                         "  [green]delete <ID>[/green] - Delete a note by ID\n"
-                        "  [green]import <file>[/green] - Import file (.md, .txt, .rtf, .pdf, .docx)\n"
+                        "  [green]import <file|URL>[/green] - Import file or URL as note\n"
+                        "  [green]clip <URL>[/green] - Clip web page as note\n"
                         "  [green]enhance <ID>[/green] - Enhance note with AI\n"
                         "  [green]tags[/green] - Show all tags\n"
+                        "  [green]templates[/green] - List available templates\n"
                         "  [green]export <ID>[/green] - Export a note by ID\n"
                         "  [green]sync[/green] - Sync with Git\n"
                         "  [green]config[/green] - Configuration\n"
@@ -1538,10 +2332,19 @@ def interactive_mode():
                 ctx.invoke(new)
             elif command == "list":
                 ctx = click.Context(list)
-                ctx.invoke(list, preview=False, sort="modified", limit=50, tag=None)
+                ctx.invoke(
+                    list,
+                    preview=False,
+                    sort="modified",
+                    page_size=20,
+                    tag=None,
+                    no_pagination=False,
+                )
             elif command == "recent":
                 ctx = click.Context(list)
-                ctx.invoke(list, preview=False, sort="modified", limit=5, tag=None)
+                ctx.invoke(
+                    list, preview=False, sort="modified", page_size=5, tag=None, no_pagination=True
+                )
             elif command == "open" and args:
                 ctx = click.Context(open)
                 ctx.invoke(open, note_id=args, last=False)
@@ -1549,16 +2352,29 @@ def interactive_mode():
                 ctx = click.Context(delete)
                 ctx.invoke(delete, note_id=args, yes=False)
             elif command == "import" and args:
-                # Import supports file path as argument
-                file_path = Path(args).expanduser()
-                if not file_path.exists():
-                    console.print(f"[red]Error: File not found: {args}[/red]")
-                else:
+                # Import supports file path or URL as argument
+                if args.startswith(("http://", "https://")):
+                    # URL import
                     ctx = click.Context(import_file)
-                    ctx.invoke(import_file, files=(str(file_path),), title=None, tags=None)
+                    ctx.invoke(import_file, sources=(args,), title=None, tags=None)
+                else:
+                    # File import
+                    file_path = Path(args).expanduser()
+                    if not file_path.exists():
+                        console.print(f"[red]Error: File not found: {args}[/red]")
+                    else:
+                        ctx = click.Context(import_file)
+                        ctx.invoke(import_file, sources=(str(file_path),), title=None, tags=None)
+            elif command == "clip" and args:
+                # Clip URL
+                ctx = click.Context(clip)
+                ctx.invoke(clip, url=args, title=None, tags=None)
             elif command == "tags":
                 ctx = click.Context(tags)
                 ctx.invoke(tags)
+            elif command == "templates":
+                ctx = click.Context(templates_alias)
+                ctx.invoke(templates_alias)
             elif command == "enhance" and args:
                 ctx = click.Context(enhance)
                 ctx.invoke(enhance, note_id=args, instructions=None, quick=False)
@@ -1577,6 +2393,7 @@ def interactive_mode():
                     gpg_key=None,
                     auto_sync=None,
                     auto_tag=None,
+                    render_preview=None,
                     llm_provider=None,
                     llm_model=None,
                     llm_key=None,
@@ -1604,12 +2421,15 @@ def interactive_mode():
                 console.print(f"[yellow]Usage: {command} <ID>[/yellow]")
                 console.print("[dim]Tip: Use search to find note IDs[/dim]")
             elif command == "import" and not args:
-                console.print("[yellow]Usage: import <file_path>[/yellow]")
-                console.print("[dim]Supported: .md, .txt, .rtf, .pdf, .docx[/dim]")
+                console.print("[yellow]Usage: import <file_path|URL>[/yellow]")
+                console.print("[dim]Supported: .md, .txt, .rtf, .pdf, .docx, URLs[/dim]")
+            elif command == "clip" and not args:
+                console.print("[yellow]Usage: clip <URL>[/yellow]")
+                console.print("[dim]Example: clip https://example.com/article[/dim]")
             else:
                 # Treat as search query
                 ctx = click.Context(search)
-                ctx.invoke(search, query=user_input, tag=None)
+                ctx.invoke(search, query=user_input, tag=None, page_size=20, no_pagination=False)
 
         except KeyboardInterrupt:
             break

@@ -1,8 +1,9 @@
 """File importer for GPGNotes - converts various formats to markdown notes."""
 
 import re
+from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 
 
 class ImportError(Exception):
@@ -281,3 +282,146 @@ def import_file(file_path: Path, title: Optional[str] = None) -> tuple[str, str]
 def get_supported_extensions() -> list[str]:
     """Return list of supported file extensions."""
     return [".md", ".markdown", ".txt", ".text", ".rtf", ".pdf", ".docx"]
+
+
+def import_url(url: str, title: Optional[str] = None) -> Tuple[str, str]:
+    """
+    Import content from a URL (web clipping).
+
+    Args:
+        url: URL to fetch
+        title: Optional custom title
+
+    Returns:
+        Tuple of (title, content_markdown)
+    """
+    try:
+        import urllib.request
+        from html.parser import HTMLParser
+    except ImportError as e:
+        raise ImportError(f"Failed to import required modules: {e}")
+
+    # Simple HTML to Markdown converter
+    class HTMLToMarkdown(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.markdown = []
+            self.current_tag = None
+            self.list_level = 0
+            self.in_pre = False
+            self.title = None
+
+        def handle_starttag(self, tag, attrs):
+            if tag == "h1":
+                self.current_tag = "h1"
+            elif tag == "h2":
+                self.current_tag = "h2"
+            elif tag == "h3":
+                self.current_tag = "h3"
+            elif tag == "h4":
+                self.current_tag = "h4"
+            elif tag == "p":
+                self.current_tag = "p"
+            elif tag == "strong" or tag == "b":
+                self.markdown.append("**")
+            elif tag == "em" or tag == "i":
+                self.markdown.append("*")
+            elif tag == "code":
+                self.markdown.append("`")
+            elif tag == "pre":
+                self.in_pre = True
+                self.markdown.append("\n```\n")
+            elif tag == "a":
+                href = dict(attrs).get("href", "")
+                self.markdown.append("[")
+                self.current_tag = ("a", href)
+            elif tag == "ul":
+                self.list_level += 1
+            elif tag == "ol":
+                self.list_level += 1
+            elif tag == "li":
+                self.markdown.append(f"\n{'  ' * (self.list_level - 1)}- ")
+            elif tag == "br":
+                self.markdown.append("\n")
+
+        def handle_endtag(self, tag):
+            if tag in ["h1", "h2", "h3", "h4", "p"]:
+                self.markdown.append("\n\n")
+                self.current_tag = None
+            elif tag == "strong" or tag == "b":
+                self.markdown.append("**")
+            elif tag == "em" or tag == "i":
+                self.markdown.append("*")
+            elif tag == "code":
+                self.markdown.append("`")
+            elif tag == "pre":
+                self.in_pre = False
+                self.markdown.append("\n```\n")
+            elif tag == "a":
+                if isinstance(self.current_tag, tuple) and self.current_tag[0] == "a":
+                    href = self.current_tag[1]
+                    self.markdown.append(f"]({href})")
+                    self.current_tag = None
+            elif tag == "ul" or tag == "ol":
+                self.list_level -= 1
+                if self.list_level == 0:
+                    self.markdown.append("\n")
+
+        def handle_data(self, data):
+            data = data.strip()
+            if data:
+                if self.current_tag == "h1":
+                    self.markdown.append(f"# {data}")
+                    if not self.title:
+                        self.title = data
+                elif self.current_tag == "h2":
+                    self.markdown.append(f"## {data}")
+                elif self.current_tag == "h3":
+                    self.markdown.append(f"### {data}")
+                elif self.current_tag == "h4":
+                    self.markdown.append(f"#### {data}")
+                elif self.in_pre:
+                    self.markdown.append(data)
+                else:
+                    # Regular text
+                    if self.markdown and not self.markdown[-1].endswith(
+                        (" ", "\n", "**", "*", "`", "[")
+                    ):
+                        self.markdown.append(" ")
+                    self.markdown.append(data)
+
+        def get_markdown(self):
+            return "".join(self.markdown).strip()
+
+    # Fetch the URL
+    try:
+        req = urllib.request.Request(
+            url, headers={"User-Agent": "Mozilla/5.0 (GPGNotes Web Clipper)"}
+        )
+        with urllib.request.urlopen(req, timeout=30) as response:
+            html_content = response.read().decode("utf-8", errors="ignore")
+    except Exception as e:
+        raise ImportError(f"Failed to fetch URL: {e}")
+
+    # Parse HTML and convert to markdown
+    parser = HTMLToMarkdown()
+    parser.feed(html_content)
+
+    markdown_content = parser.get_markdown()
+    detected_title = parser.title or "Web Clip"
+
+    # Add metadata header
+    clipped_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    metadata_header = f"""---
+source_url: {url}
+clipped_at: {clipped_at}
+---
+
+*Clipped from [{url}]({url})*
+
+"""
+
+    final_content = metadata_header + markdown_content
+    final_title = title if title else detected_title
+
+    return final_title, final_content
