@@ -517,10 +517,14 @@ def new(title, tags, template, var):
 @click.option("--no-pagination", is_flag=True, help="Disable pagination, show all results")
 def search(query, tag, page_size, no_pagination):
     """Search notes with pagination."""
+    from datetime import datetime
+
     config = Config()
     index = SearchIndex(config)
+    storage = Storage(config)
 
     try:
+        # Get file paths from index
         if tag:
             # Search by tag
             results = index.search_by_tag(tag)
@@ -538,17 +542,26 @@ def search(query, tag, page_size, no_pagination):
             index.close()
             return
 
-        # Load notes
-        storage = Storage(config)
-        notes_data = []
-        for file_path in results:
-            try:
-                note = storage.load_note(Path(file_path))
-                notes_data.append(note)
-            except Exception:
-                continue
+        # Get metadata from index for all results (fast, no decryption)
+        notes_metadata = []
+        for file_path_str in results:
+            # Query index for metadata
+            cursor = index.conn.execute(
+                "SELECT title, tags, modified FROM notes_fts WHERE file_path = ?",
+                (file_path_str,),
+            )
+            row = cursor.fetchone()
+            if row:
+                notes_metadata.append(
+                    {
+                        "file_path": file_path_str,
+                        "title": row["title"],
+                        "tags": row["tags"].split() if row["tags"] else [],
+                        "modified": row["modified"],
+                    }
+                )
 
-        if not notes_data:
+        if not notes_metadata:
             console.print("[yellow]No notes found[/yellow]")
             return
 
@@ -561,18 +574,33 @@ def search(query, tag, page_size, no_pagination):
             table.add_column("Tags", style="blue", width=15)
             table.add_column("Modified", style="yellow", width=16)
 
-            for note in notes_page:
-                # Create content preview (first 80 chars)
-                preview = note.content.replace("\n", " ").strip()
-                if len(preview) > 80:
-                    preview = preview[:77] + "..."
+            for note_meta in notes_page:
+                # Extract ID from file path
+                file_path = Path(note_meta["file_path"])
+                note_id = Note.extract_id_from_path(file_path)
+
+                # Parse datetime
+                modified_dt = datetime.fromisoformat(note_meta["modified"])
+
+                # Only decrypt for preview (current page only)
+                preview = ""
+                try:
+                    note = storage.load_note(file_path)
+                    preview = note.content.replace("\n", " ").strip()
+                    if len(preview) > 80:
+                        preview = preview[:77] + "..."
+                except Exception:
+                    preview = "[error loading preview]"
 
                 table.add_row(
-                    note.note_id,
-                    note.title[:23] + "..." if len(note.title) > 23 else note.title,
+                    note_id,
+                    note_meta["title"][:23] + "..."
+                    if len(note_meta["title"]) > 23
+                    else note_meta["title"],
                     preview,
-                    ", ".join(note.tags[:2]) + ("..." if len(note.tags) > 2 else ""),
-                    note.modified.strftime("%Y-%m-%d %H:%M"),
+                    ", ".join(note_meta["tags"][:2])
+                    + ("..." if len(note_meta["tags"]) > 2 else ""),
+                    modified_dt.strftime("%Y-%m-%d %H:%M"),
                 )
 
             return table
@@ -586,13 +614,13 @@ def search(query, tag, page_size, no_pagination):
             table_title = "All Notes"
 
         # Use pagination or show all
-        if no_pagination or len(notes_data) <= page_size:
+        if no_pagination or len(notes_metadata) <= page_size:
             # Show all results
-            table = build_search_table(notes_data, table_title)
+            table = build_search_table(notes_metadata, table_title)
             console.print(table)
         else:
             # Use pagination
-            paginator = _paginate_results(notes_data, page_size)
+            paginator = _paginate_results(notes_metadata, page_size)
             for page_info in paginator:
                 # Clear screen for better UX
                 console.clear()
@@ -776,42 +804,26 @@ def list(preview, sort, page_size, tag, no_pagination):
         notes list -n 10              # Show 10 items per page
         notes list --no-pagination    # Show all results at once
     """
+    from datetime import datetime
+    from pathlib import Path
+
+    from .index import SearchIndex
+
     config = Config()
     storage = Storage(config)
 
     try:
-        file_paths = storage.list_notes()
+        # Use index for fast metadata retrieval (no decryption!)
+        search_index = SearchIndex(config)
+        notes_metadata = search_index.get_all_metadata(sort_by=sort, tag_filter=tag)
+        search_index.close()
 
-        if not file_paths:
-            console.print("[yellow]No notes found[/yellow]")
-            return
-
-        # Load all notes
-        notes_data = []
-        for file_path in file_paths:
-            try:
-                note = storage.load_note(file_path)
-                # Filter by tag if specified
-                if tag and tag.lower() not in [t.lower() for t in note.tags]:
-                    continue
-                notes_data.append(note)
-            except Exception:
-                continue
-
-        if not notes_data:
+        if not notes_metadata:
             if tag:
                 console.print(f"[yellow]No notes found with tag '{tag}'[/yellow]")
             else:
                 console.print("[yellow]No notes found[/yellow]")
             return
-
-        # Sort notes
-        if sort == "modified":
-            notes_data.sort(key=lambda n: n.modified, reverse=True)
-        elif sort == "created":
-            notes_data.sort(key=lambda n: n.created, reverse=True)
-        elif sort == "title":
-            notes_data.sort(key=lambda n: n.title.lower())
 
         def build_table(notes_page, table_title):
             """Build a table for a page of notes."""
@@ -825,31 +837,44 @@ def list(preview, sort, page_size, tag, no_pagination):
             if preview:
                 table.add_column("Preview", style="dim", width=35, no_wrap=True)
 
-            for note in notes_page:
+            for note_meta in notes_page:
+                # Extract ID from file path
+                file_path = Path(note_meta["file_path"])
+                note_id = Note.extract_id_from_path(file_path)
+
+                # Parse datetime
+                modified_dt = datetime.fromisoformat(note_meta["modified"])
+
                 # Truncate title and tags to fit columns
-                title_text = note.title
+                title_text = note_meta["title"]
                 if len(title_text) > title_width - 3:
                     title_text = title_text[: title_width - 3] + "..."
 
-                tags_text = ", ".join(note.tags[:3])
+                tags_text = ", ".join(note_meta["tags"][:3])
                 if len(tags_text) > tags_width - 3:
                     tags_text = tags_text[: tags_width - 3] + "..."
 
                 row = [
-                    note.note_id,
+                    note_id,
                     title_text,
                     tags_text,
-                    note.modified.strftime("%Y-%m-%d %H:%M"),
+                    modified_dt.strftime("%Y-%m-%d %H:%M"),
                 ]
+
                 if preview:
-                    # Get first non-empty line of content
-                    first_line = ""
-                    for line in note.content.split("\n"):
-                        line = line.strip()
-                        if line and not line.startswith("#"):
-                            first_line = line[:32] + "..." if len(line) > 32 else line
-                            break
-                    row.append(first_line)
+                    # Only decrypt if preview is requested for current page
+                    try:
+                        note = storage.load_note(file_path)
+                        # Get first non-empty line of content
+                        first_line = ""
+                        for line in note.content.split("\n"):
+                            line = line.strip()
+                            if line and not line.startswith("#"):
+                                first_line = line[:32] + "..." if len(line) > 32 else line
+                                break
+                        row.append(first_line)
+                    except Exception:
+                        row.append("[error]")
 
                 table.add_row(*row)
 
@@ -861,13 +886,13 @@ def list(preview, sort, page_size, tag, no_pagination):
             table_title = f"Notes tagged '{tag}'"
 
         # Use pagination or show all
-        if no_pagination or len(notes_data) <= page_size:
+        if no_pagination or len(notes_metadata) <= page_size:
             # Show all results
-            table = build_table(notes_data, table_title)
+            table = build_table(notes_metadata, table_title)
             console.print(table)
         else:
             # Use pagination
-            paginator = _paginate_results(notes_data, page_size)
+            paginator = _paginate_results(notes_metadata, page_size)
             for page_info in paginator:
                 # Clear screen for better UX (optional)
                 console.clear()
