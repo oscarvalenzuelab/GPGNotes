@@ -301,8 +301,25 @@ def import_url(url: str, title: Optional[str] = None) -> Tuple[str, str]:
     except ImportError as e:
         raise ImportError(f"Failed to import required modules: {e}")
 
-    # Simple HTML to Markdown converter
+    # HTML to Markdown converter with content extraction
     class HTMLToMarkdown(HTMLParser):
+        # Tags to completely ignore (skip content)
+        SKIP_TAGS = {
+            "nav",
+            "header",
+            "footer",
+            "aside",
+            "script",
+            "style",
+            "noscript",
+            "iframe",
+            "form",
+            "button",
+        }
+
+        # Content container tags (prefer these)
+        CONTENT_TAGS = {"article", "main"}
+
         def __init__(self):
             super().__init__()
             self.markdown = []
@@ -310,8 +327,27 @@ def import_url(url: str, title: Optional[str] = None) -> Tuple[str, str]:
             self.list_level = 0
             self.in_pre = False
             self.title = None
+            self.skip_depth = 0  # Track depth of skipped tags
+            self.in_content = False  # Track if we're in article/main
+            self.content_depth = 0  # Track depth of content tags
 
         def handle_starttag(self, tag, attrs):
+            # Skip ignored tags and their content
+            if tag in self.SKIP_TAGS:
+                self.skip_depth += 1
+                return
+
+            # Track content container tags
+            if tag in self.CONTENT_TAGS:
+                self.in_content = True
+                self.content_depth += 1
+                return
+
+            # Skip processing if we're in a skipped tag
+            if self.skip_depth > 0:
+                return
+
+            # Process content tags
             if tag == "h1":
                 self.current_tag = "h1"
             elif tag == "h2":
@@ -345,6 +381,23 @@ def import_url(url: str, title: Optional[str] = None) -> Tuple[str, str]:
                 self.markdown.append("\n")
 
         def handle_endtag(self, tag):
+            # Handle skipped tags
+            if tag in self.SKIP_TAGS:
+                self.skip_depth = max(0, self.skip_depth - 1)
+                return
+
+            # Handle content container tags
+            if tag in self.CONTENT_TAGS:
+                self.content_depth = max(0, self.content_depth - 1)
+                if self.content_depth == 0:
+                    self.in_content = False
+                return
+
+            # Skip processing if we're in a skipped tag
+            if self.skip_depth > 0:
+                return
+
+            # Process end tags
             if tag in ["h1", "h2", "h3", "h4", "p"]:
                 self.markdown.append("\n\n")
                 self.current_tag = None
@@ -368,6 +421,10 @@ def import_url(url: str, title: Optional[str] = None) -> Tuple[str, str]:
                     self.markdown.append("\n")
 
         def handle_data(self, data):
+            # Skip if we're in a skipped tag
+            if self.skip_depth > 0:
+                return
+
             data = data.strip()
             if data:
                 if self.current_tag == "h1":

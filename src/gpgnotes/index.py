@@ -132,6 +132,58 @@ class SearchIndex:
 
         return [(row["file_path"], row["title"], row["modified"]) for row in cursor]
 
+    def get_all_metadata(
+        self, sort_by: str = "modified", limit: int = None, tag_filter: str = None
+    ) -> List[dict]:
+        """
+        Get metadata for all notes without decryption.
+
+        Args:
+            sort_by: Sort field ('modified', 'created', or 'title')
+            limit: Maximum number of results (None for all)
+            tag_filter: Filter by tag (None for all notes)
+
+        Returns:
+            List of dicts with keys: file_path, title, tags, created, modified
+        """
+        # Build query
+        query = "SELECT file_path, title, tags, created, modified FROM notes_fts"
+
+        # Add tag filter if specified
+        params = []
+        if tag_filter:
+            query += " WHERE tags MATCH ?"
+            params.append(f'"{tag_filter}"')
+
+        # Add sorting
+        if sort_by == "modified":
+            query += " ORDER BY modified DESC"
+        elif sort_by == "created":
+            query += " ORDER BY created DESC"
+        elif sort_by == "title":
+            query += " ORDER BY title COLLATE NOCASE"
+
+        # Add limit if specified
+        if limit:
+            query += " LIMIT ?"
+            params.append(limit)
+
+        cursor = self.conn.execute(query, params)
+
+        results = []
+        for row in cursor:
+            results.append(
+                {
+                    "file_path": row["file_path"],
+                    "title": row["title"],
+                    "tags": row["tags"].split() if row["tags"] else [],
+                    "created": row["created"],
+                    "modified": row["modified"],
+                }
+            )
+
+        return results
+
     def rebuild_index(self, notes: List[Note]):
         """Rebuild entire index from scratch."""
         # Clear existing index
