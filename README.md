@@ -94,9 +94,18 @@ notes search --tag work
 
 # Open/edit a note
 notes open <note-id>
+notes open "meeting"    # Fuzzy match by title
+notes open --last       # Open most recent
 
 # List all notes
 notes list
+notes list --preview              # Show content preview
+notes list --sort title           # Sort by title
+notes list --tag work --limit 10  # Filter and limit
+
+# Recent notes (shortcut)
+notes recent         # Last 5 notes
+notes recent -n 10   # Last 10 notes
 
 # Show all tags
 notes tags
@@ -149,8 +158,9 @@ notes
 
 In interactive mode, you can:
 - Type any text to search
-- Use commands: `new`, `list`, `tags`, `sync`, `config`, `exit`
-- Navigate results with tab completion
+- Use commands: `new`, `list`, `recent`, `open`, `tags`, `sync`, `config`, `exit`
+- Tab-complete note titles after `open`, `delete`, `export`, `enhance`
+- Use Up/Down arrows to navigate command history
 
 ## Directory Structure
 

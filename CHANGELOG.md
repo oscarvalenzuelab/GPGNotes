@@ -5,6 +5,24 @@ All notable changes to GPGNotes will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.10] - 2025-12-16
+
+### Added
+
+- **Open Most Recent Note**: `notes open --last` opens the most recently modified note.
+- **Title-Based Fuzzy Matching**: Open notes by title with `notes open "meeting"` - shows matches for selection.
+- **Enhanced List Command**: New options for `notes list`:
+  - `--preview` / `-p`: Show first line of content
+  - `--sort` / `-s`: Sort by `modified`, `created`, or `title`
+  - `--limit` / `-n`: Set maximum notes to display
+  - `--tag` / `-t`: Filter notes by tag
+- **Recent Notes Command**: `notes recent` as shortcut for `notes list --sort modified -n 5`.
+- **Note Title Autocomplete**: Tab completion for note titles in interactive mode after `open`, `delete`, `export`, `enhance` commands.
+
+### Changed
+
+- **Interactive Mode**: Updated help text to reflect new features and autocomplete capability.
+
 ## [0.1.9] - 2025-12-16
 
 ### Fixed
@@ -217,6 +235,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sync requires Git remote to be configured manually
 - Initial sync from existing remote requires `--allow-unrelated-histories` (handled automatically)
 
+[0.1.10]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.1.10
 [0.1.9]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.1.9
 [0.1.8]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.1.8
 [0.1.7]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.1.7
