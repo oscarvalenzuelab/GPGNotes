@@ -1346,22 +1346,24 @@ def export(note_id, format, output, plain):
 
 
 @main.command(name="import")
-@click.argument("files", nargs=-1, required=True, type=click.Path(exists=True))
-@click.option("--title", "-t", help="Custom title for the imported note (single file only)")
+@click.argument("sources", nargs=-1, required=True)
+@click.option("--title", "-t", help="Custom title for the imported note (single source only)")
 @click.option("--tags", help="Comma-separated tags to add")
-def import_file(files, title, tags):
-    """Import external files as encrypted notes.
+def import_file(sources, title, tags):
+    """Import external files or URLs as encrypted notes.
 
-    Supported formats: .md, .txt, .rtf, .pdf, .docx
+    Supported formats: .md, .txt, .rtf, .pdf, .docx, URLs
 
     Examples:
         notes import document.pdf
         notes import report.docx --title "Q4 Report" --tags work,quarterly
+        notes import https://example.com/article --title "Article"
         notes import *.md
     """
     from .importer import ImportError as ImporterError
     from .importer import MissingDependencyError
     from .importer import import_file as do_import
+    from .importer import import_url
     from .llm import sanitize_for_gpg
 
     config = Config()
@@ -1374,9 +1376,14 @@ def import_file(files, title, tags):
     # Parse tags
     tag_list = [t.strip() for t in tags.split(",")] if tags else []
 
-    # Validate title option with multiple files
-    if title and len(files) > 1:
-        console.print("[yellow]Warning: --title ignored when importing multiple files[/yellow]")
+    # Add web-clip tag if importing URL
+    if any(source.startswith(("http://", "https://")) for source in sources):
+        if "web-clip" not in tag_list:
+            tag_list.append("web-clip")
+
+    # Validate title option with multiple sources
+    if title and len(sources) > 1:
+        console.print("[yellow]Warning: --title ignored when importing multiple sources[/yellow]")
         title = None
 
     storage = Storage(config)
@@ -1387,16 +1394,35 @@ def import_file(files, title, tags):
     failed_count = 0
 
     try:
-        for file_path_str in files:
-            file_path = Path(file_path_str)
-
+        for source_str in sources:
             try:
-                # Import the file
-                with console.status(f"[bold blue]Importing {file_path.name}..."):
-                    note_title, content = do_import(file_path, title)
-                    # Sanitize content for GPG (convert smart quotes, etc.)
-                    content = sanitize_for_gpg(content)
-                    note_title = sanitize_for_gpg(note_title)
+                # Check if it's a URL
+                if source_str.startswith(("http://", "https://")):
+                    # Import URL
+                    with console.status(f"[bold blue]Clipping {source_str}..."):
+                        note_title, content = import_url(source_str, title)
+                        # Sanitize content for GPG
+                        content = sanitize_for_gpg(content)
+                        note_title = sanitize_for_gpg(note_title)
+
+                    source_name = source_str
+                else:
+                    # Import file
+                    file_path = Path(source_str)
+
+                    # Check if file exists
+                    if not file_path.exists():
+                        console.print(f"[red]✗[/red] File not found: {source_str}")
+                        failed_count += 1
+                        continue
+
+                    with console.status(f"[bold blue]Importing {file_path.name}..."):
+                        note_title, content = do_import(file_path, title)
+                        # Sanitize content for GPG (convert smart quotes, etc.)
+                        content = sanitize_for_gpg(content)
+                        note_title = sanitize_for_gpg(note_title)
+
+                    source_name = file_path.name
 
                 # Create note
                 note = Note(title=note_title, content=content, tags=tag_list.copy())
@@ -1410,34 +1436,51 @@ def import_file(files, title, tags):
                 storage.save_note(note)
                 index.add_note(note)
 
-                console.print(f"[green]✓[/green] Imported: {file_path.name} → {note.title}")
+                console.print(f"[green]✓[/green] Imported: {source_name} → {note.title}")
                 if note.tags:
                     console.print(f"  [blue]Tags:[/blue] {', '.join(note.tags)}")
 
                 imported_count += 1
 
             except MissingDependencyError as e:
-                console.print(f"[red]✗[/red] {file_path.name}: {e}")
+                console.print(f"[red]✗[/red] {source_str}: {e}")
                 failed_count += 1
             except ImporterError as e:
-                console.print(f"[red]✗[/red] {file_path.name}: {e}")
+                console.print(f"[red]✗[/red] {source_str}: {e}")
                 failed_count += 1
             except Exception as e:
-                console.print(f"[red]✗[/red] {file_path.name}: {e}")
+                console.print(f"[red]✗[/red] {source_str}: {e}")
                 failed_count += 1
 
         # Summary
-        if len(files) > 1:
+        if len(sources) > 1:
             console.print(
                 f"\n[cyan]Summary:[/cyan] {imported_count} imported, {failed_count} failed"
             )
 
         # Sync if enabled
         if imported_count > 0 and config.get("auto_sync"):
-            _sync_in_background(config, f"Import {imported_count} file(s)")
+            _sync_in_background(config, f"Import {imported_count} item(s)")
 
     finally:
         index.close()
+
+
+@main.command()
+@click.argument("url")
+@click.option("--title", "-t", help="Custom title for the note")
+@click.option("--tags", help="Comma-separated tags to add")
+def clip(url, title, tags):
+    """Clip a web page as a note (alias for 'import <url>').
+
+    Examples:
+        notes clip https://example.com/article
+        notes clip https://example.com/article --title "Great Article"
+        notes clip https://example.com/article --tags reading,tech
+    """
+    # Delegate to import command
+    ctx = click.Context(import_file)
+    ctx.invoke(import_file, sources=(url,), title=title, tags=tags)
 
 
 @main.command()
@@ -2083,6 +2126,7 @@ class NotesCompleter(Completer):
         "open",
         "delete",
         "import",
+        "clip",
         "enhance",
         "tags",
         "templates",
@@ -2171,7 +2215,8 @@ def interactive_mode():
             "  [green]recent[/green] - Show recent notes\n"
             "  [green]open <ID|title>[/green] - Open a note\n"
             "  [green]delete <ID>[/green] - Delete a note\n"
-            "  [green]import <file>[/green] - Import a file as note\n"
+            "  [green]import <file|URL>[/green] - Import file/URL as note\n"
+            "  [green]clip <URL>[/green] - Clip web page as note\n"
             "  [green]enhance <ID>[/green] - Enhance note with AI\n"
             "  [green]tags[/green] - Show all tags\n"
             "  [green]templates[/green] - List note templates\n"
@@ -2216,7 +2261,8 @@ def interactive_mode():
                         "  [green]recent[/green] - Show recent notes\n"
                         "  [green]open <ID|title>[/green] - Open a note by ID or title\n"
                         "  [green]delete <ID>[/green] - Delete a note by ID\n"
-                        "  [green]import <file>[/green] - Import file (.md, .txt, .rtf, .pdf, .docx)\n"
+                        "  [green]import <file|URL>[/green] - Import file or URL as note\n"
+                        "  [green]clip <URL>[/green] - Clip web page as note\n"
                         "  [green]enhance <ID>[/green] - Enhance note with AI\n"
                         "  [green]tags[/green] - Show all tags\n"
                         "  [green]templates[/green] - List available templates\n"
@@ -2247,13 +2293,23 @@ def interactive_mode():
                 ctx = click.Context(delete)
                 ctx.invoke(delete, note_id=args, yes=False)
             elif command == "import" and args:
-                # Import supports file path as argument
-                file_path = Path(args).expanduser()
-                if not file_path.exists():
-                    console.print(f"[red]Error: File not found: {args}[/red]")
-                else:
+                # Import supports file path or URL as argument
+                if args.startswith(("http://", "https://")):
+                    # URL import
                     ctx = click.Context(import_file)
-                    ctx.invoke(import_file, files=(str(file_path),), title=None, tags=None)
+                    ctx.invoke(import_file, sources=(args,), title=None, tags=None)
+                else:
+                    # File import
+                    file_path = Path(args).expanduser()
+                    if not file_path.exists():
+                        console.print(f"[red]Error: File not found: {args}[/red]")
+                    else:
+                        ctx = click.Context(import_file)
+                        ctx.invoke(import_file, sources=(str(file_path),), title=None, tags=None)
+            elif command == "clip" and args:
+                # Clip URL
+                ctx = click.Context(clip)
+                ctx.invoke(clip, url=args, title=None, tags=None)
             elif command == "tags":
                 ctx = click.Context(tags)
                 ctx.invoke(tags)
@@ -2306,8 +2362,11 @@ def interactive_mode():
                 console.print(f"[yellow]Usage: {command} <ID>[/yellow]")
                 console.print("[dim]Tip: Use search to find note IDs[/dim]")
             elif command == "import" and not args:
-                console.print("[yellow]Usage: import <file_path>[/yellow]")
-                console.print("[dim]Supported: .md, .txt, .rtf, .pdf, .docx[/dim]")
+                console.print("[yellow]Usage: import <file_path|URL>[/yellow]")
+                console.print("[dim]Supported: .md, .txt, .rtf, .pdf, .docx, URLs[/dim]")
+            elif command == "clip" and not args:
+                console.print("[yellow]Usage: clip <URL>[/yellow]")
+                console.print("[dim]Example: clip https://example.com/article[/dim]")
             else:
                 # Treat as search query
                 ctx = click.Context(search)
