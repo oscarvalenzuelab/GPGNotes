@@ -894,14 +894,38 @@ def reindex():
 @click.option(
     "--format",
     "-f",
-    type=click.Choice(["markdown", "text", "html", "json"]),
+    type=click.Choice(["markdown", "text", "html", "json", "rtf", "pdf", "docx"]),
     default="markdown",
     help="Export format",
 )
-@click.option("--output", "-o", help="Output file path")
-def export(note_id, format, output):
-    """Export a note by ID (use 'notes search' to find IDs)."""
-    import json
+@click.option("--output", "-o", help="Output file path (required for pdf/docx)")
+@click.option(
+    "--plain",
+    is_flag=True,
+    help="Export to ~/.gpgnotes/plain/ folder (syncs with git as readable file)",
+)
+def export(note_id, format, output, plain):
+    """Export a note by ID (use 'notes search' to find IDs).
+
+    Supported formats: markdown, text, html, json, rtf, pdf, docx
+
+    Use --plain to export to the plain/ folder within your notes directory.
+    These files sync with git and are readable on GitHub.
+
+    Note: pdf and docx formats require the --output option and
+    optional dependencies (pip install gpgnotes[import]).
+    """
+    from .exporter import (
+        ExportError,
+        MissingDependencyError,
+        export_docx,
+        export_html,
+        export_json,
+        export_markdown,
+        export_pdf,
+        export_rtf,
+        export_text,
+    )
 
     config = Config()
     storage = Storage(config)
@@ -921,77 +945,164 @@ def export(note_id, format, output):
             return
 
         note = storage.load_note(file_path)
-        notes_to_export = [note]
 
-        if not notes_to_export:
-            console.print("[yellow]No notes to export[/yellow]")
+        # Handle --plain flag: export to plain/ folder
+        if plain:
+            # Determine file extension based on format
+            extensions = {
+                "markdown": ".md",
+                "text": ".txt",
+                "html": ".html",
+                "json": ".json",
+                "rtf": ".rtf",
+                "pdf": ".pdf",
+                "docx": ".docx",
+            }
+            ext = extensions.get(format, ".md")
+
+            # Create plain folder path mirroring the notes structure
+            plain_dir = config.config_dir / "plain"
+            # Use note's relative path (YYYY/MM/filename)
+            rel_path = file_path.relative_to(config.notes_dir)
+            # Change extension from .md.gpg to the export format
+            plain_file = plain_dir / rel_path.with_suffix("").with_suffix(ext)
+            plain_file.parent.mkdir(parents=True, exist_ok=True)
+            output = str(plain_file)
+
+        # Check if output is required for binary formats
+        if format in ["pdf", "docx"] and not output:
+            console.print(f"[red]Error: --output is required for {format} format[/red]")
             return
 
         # Generate export content
         if format == "markdown":
-            content = ""
-            for note in notes_to_export:
-                content += f"# {note.title}\n\n"
-                content += f"**Modified:** {note.modified.strftime('%Y-%m-%d %H:%M')}\n"
-                content += f"**Tags:** {', '.join(note.tags) if note.tags else 'none'}\n\n"
-                content += f"{note.content}\n\n"
-                content += "---\n\n"
-
+            content = export_markdown(note)
         elif format == "text":
-            content = ""
-            for note in notes_to_export:
-                content += f"{note.title}\n"
-                content += "=" * len(note.title) + "\n\n"
-                content += f"Modified: {note.modified.strftime('%Y-%m-%d %H:%M')}\n"
-                content += f"Tags: {', '.join(note.tags) if note.tags else 'none'}\n\n"
-                content += f"{note.content}\n\n"
-                content += "-" * 60 + "\n\n"
-
+            content = export_text(note)
         elif format == "html":
-            content = "<!DOCTYPE html>\n<html>\n<head>\n"
-            content += "<meta charset='utf-8'>\n"
-            content += "<title>GPGNotes Export</title>\n"
-            content += "<style>body { font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; }"
-            content += "h1 { color: #333; } .note { margin-bottom: 40px; border-bottom: 2px solid #eee; padding-bottom: 20px; }"
-            content += (
-                ".meta { color: #666; font-size: 0.9em; } .tags { color: #0066cc; }</style>\n"
-            )
-            content += "</head>\n<body>\n"
-            for note in notes_to_export:
-                content += "<div class='note'>\n"
-                content += f"<h1>{note.title}</h1>\n"
-                content += f"<div class='meta'>Modified: {note.modified.strftime('%Y-%m-%d %H:%M')}</div>\n"
-                content += f"<div class='tags'>Tags: {', '.join(note.tags) if note.tags else 'none'}</div>\n"
-                content += f"<pre>{note.content}</pre>\n"
-                content += "</div>\n"
-            content += "</body>\n</html>"
-
+            content = export_html(note)
         elif format == "json":
-            data = []
-            for note in notes_to_export:
-                data.append(
-                    {
-                        "title": note.title,
-                        "content": note.content,
-                        "tags": note.tags,
-                        "created": note.created.isoformat() if hasattr(note, "created") else None,
-                        "modified": note.modified.isoformat(),
-                    }
-                )
-            content = json.dumps(data, indent=2, ensure_ascii=False)
+            content = export_json(note)
+        elif format == "rtf":
+            content = export_rtf(note)
+        elif format == "pdf":
+            output_path = Path(output).expanduser()
+            with console.status("[bold blue]Exporting to PDF..."):
+                export_pdf(note, output_path)
+            console.print(f"[green]✓[/green] Exported to: {output_path}")
+            return
+        elif format == "docx":
+            output_path = Path(output).expanduser()
+            with console.status("[bold blue]Exporting to DOCX..."):
+                export_docx(note, output_path)
+            console.print(f"[green]✓[/green] Exported to: {output_path}")
+            return
 
-        # Output to file or stdout
+        # Output to file or stdout (for text-based formats)
         if output:
             output_path = Path(output).expanduser()
             output_path.write_text(content, encoding="utf-8")
-            console.print(
-                f"[green]✓[/green] Exported {len(notes_to_export)} note(s) to: {output_path}"
-            )
+            console.print(f"[green]✓[/green] Exported to: {output_path}")
         else:
             console.print(content)
 
+    except MissingDependencyError as e:
+        console.print(f"[red]Error:[/red] {e}")
+    except ExportError as e:
+        console.print(f"[red]Export error:[/red] {e}")
     except Exception as e:
         console.print(f"[red]Error exporting notes: {e}[/red]")
+
+
+@main.command(name="import")
+@click.argument("files", nargs=-1, required=True, type=click.Path(exists=True))
+@click.option("--title", "-t", help="Custom title for the imported note (single file only)")
+@click.option("--tags", help="Comma-separated tags to add")
+def import_file(files, title, tags):
+    """Import external files as encrypted notes.
+
+    Supported formats: .md, .txt, .rtf, .pdf, .docx
+
+    Examples:
+        notes import document.pdf
+        notes import report.docx --title "Q4 Report" --tags work,quarterly
+        notes import *.md
+    """
+    from .importer import ImportError as ImporterError
+    from .importer import MissingDependencyError
+    from .importer import import_file as do_import
+
+    config = Config()
+
+    # Check if GPG key is configured
+    if not config.get("gpg_key"):
+        console.print("[red]Error: GPG key not configured. Run 'notes init' first.[/red]")
+        sys.exit(1)
+
+    # Parse tags
+    tag_list = [t.strip() for t in tags.split(",")] if tags else []
+
+    # Validate title option with multiple files
+    if title and len(files) > 1:
+        console.print("[yellow]Warning: --title ignored when importing multiple files[/yellow]")
+        title = None
+
+    storage = Storage(config)
+    index = SearchIndex(config)
+    tagger = AutoTagger()
+
+    imported_count = 0
+    failed_count = 0
+
+    try:
+        for file_path_str in files:
+            file_path = Path(file_path_str)
+
+            try:
+                # Import the file
+                with console.status(f"[bold blue]Importing {file_path.name}..."):
+                    note_title, content = do_import(file_path, title)
+
+                # Create note
+                note = Note(title=note_title, content=content, tags=tag_list.copy())
+
+                # Auto-tag if enabled and no tags provided
+                if config.get("auto_tag") and not tag_list:
+                    auto_tags = tagger.extract_tags(content, note_title)
+                    note.tags = auto_tags
+
+                # Save note
+                storage.save_note(note)
+                index.add_note(note)
+
+                console.print(f"[green]✓[/green] Imported: {file_path.name} → {note.title}")
+                if note.tags:
+                    console.print(f"  [blue]Tags:[/blue] {', '.join(note.tags)}")
+
+                imported_count += 1
+
+            except MissingDependencyError as e:
+                console.print(f"[red]✗[/red] {file_path.name}: {e}")
+                failed_count += 1
+            except ImporterError as e:
+                console.print(f"[red]✗[/red] {file_path.name}: {e}")
+                failed_count += 1
+            except Exception as e:
+                console.print(f"[red]✗[/red] {file_path.name}: {e}")
+                failed_count += 1
+
+        # Summary
+        if len(files) > 1:
+            console.print(
+                f"\n[cyan]Summary:[/cyan] {imported_count} imported, {failed_count} failed"
+            )
+
+        # Sync if enabled
+        if imported_count > 0 and config.get("auto_sync"):
+            _sync_in_background(config, f"Import {imported_count} file(s)")
+
+    finally:
+        index.close()
 
 
 @main.command()
@@ -1105,6 +1216,7 @@ def interactive_mode():
             "  [green]list[/green] - List all notes\n"
             "  [green]open <ID>[/green] - Open a note\n"
             "  [green]delete <ID>[/green] - Delete a note\n"
+            "  [green]import <file>[/green] - Import a file as note\n"
             "  [green]enhance <ID>[/green] - Enhance note with AI\n"
             "  [green]tags[/green] - Show all tags\n"
             "  [green]export <ID>[/green] - Export a note\n"
@@ -1124,6 +1236,7 @@ def interactive_mode():
             "list",
             "open",
             "delete",
+            "import",
             "enhance",
             "tags",
             "export",
@@ -1161,6 +1274,7 @@ def interactive_mode():
                         "  [green]list[/green] - List all notes\n"
                         "  [green]open <ID>[/green] - Open a note by ID\n"
                         "  [green]delete <ID>[/green] - Delete a note by ID\n"
+                        "  [green]import <file>[/green] - Import file (.md, .txt, .rtf, .pdf, .docx)\n"
                         "  [green]enhance <ID>[/green] - Enhance note with AI\n"
                         "  [green]tags[/green] - Show all tags\n"
                         "  [green]export <ID>[/green] - Export a note by ID\n"
@@ -1186,6 +1300,14 @@ def interactive_mode():
             elif command == "delete" and args:
                 ctx = click.Context(delete)
                 ctx.invoke(delete, note_id=args, yes=False)
+            elif command == "import" and args:
+                # Import supports file path as argument
+                file_path = Path(args).expanduser()
+                if not file_path.exists():
+                    console.print(f"[red]Error: File not found: {args}[/red]")
+                else:
+                    ctx = click.Context(import_file)
+                    ctx.invoke(import_file, files=(str(file_path),), title=None, tags=None)
             elif command == "tags":
                 ctx = click.Context(tags)
                 ctx.invoke(tags)
@@ -1233,6 +1355,9 @@ def interactive_mode():
             elif command in ["open", "delete", "enhance", "export"] and not args:
                 console.print(f"[yellow]Usage: {command} <ID>[/yellow]")
                 console.print("[dim]Tip: Use search to find note IDs[/dim]")
+            elif command == "import" and not args:
+                console.print("[yellow]Usage: import <file_path>[/yellow]")
+                console.print("[dim]Supported: .md, .txt, .rtf, .pdf, .docx[/dim]")
             else:
                 # Treat as search query
                 ctx = click.Context(search)
