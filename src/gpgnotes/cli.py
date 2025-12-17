@@ -806,8 +806,21 @@ Secrets file: {cfg._get_secrets_path()}
             )
             return
 
+        # Default models for each provider
+        default_models = {
+            "openai": "gpt-4o-mini",
+            "claude": "claude-3-5-sonnet-20241022",
+            "ollama": "llama3.1",
+        }
+
         cfg.set("llm_provider", llm_provider.lower())
         console.print(f"[green]✓[/green] LLM provider set to: {llm_provider}")
+
+        # Set default model for provider if user didn't specify a model
+        if not llm_model:
+            default_model = default_models[llm_provider.lower()]
+            cfg.set("llm_model", default_model)
+            console.print(f"[green]✓[/green] Model set to default: {default_model}")
 
         if llm_provider.lower() != "ollama":
             console.print(
