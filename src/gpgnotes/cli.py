@@ -15,6 +15,7 @@ from rich.panel import Panel
 from rich.table import Table
 
 from .config import Config
+from .history import VersionHistory, parse_diff_output
 from .index import SearchIndex
 from .note import Note
 from .storage import Storage
@@ -1722,6 +1723,287 @@ def templates_alias():
     """List all available templates (alias for 'template list')."""
     ctx = click.Context(template_list)
     ctx.invoke(template_list)
+
+
+@main.command("history")
+@click.argument("note_id")
+@click.option("--verbose", "-v", is_flag=True, help="Show detailed history")
+def history_cmd(note_id, verbose):
+    """Show version history for a note.
+
+    Examples:
+        notes history 20251216120000         # Show history
+        notes history 20251216120000 -v      # Show verbose history
+    """
+    config = Config()
+    storage = Storage(config)
+
+    try:
+        # Find note
+        file_path = storage.find_by_id(note_id)
+        note = storage.load_note(file_path)
+
+        # Get version history
+        history_mgr = VersionHistory(config.notes_dir)
+        versions = history_mgr.get_history(file_path)
+
+        if not versions:
+            console.print(f"[yellow]No history found for note '{note.title}'[/yellow]")
+            console.print("[dim]Note may not be committed to Git yet[/dim]")
+            return
+
+        # Display history
+        console.print(f"\n[bold cyan]Version History:[/bold cyan] {note.title}\n")
+
+        table = Table(show_header=True)
+        table.add_column("#", style="cyan", width=4)
+        table.add_column("Date", style="yellow", width=19)
+        table.add_column("Message", style="white", width=50)
+        if verbose:
+            table.add_column("Commit", style="dim", width=8)
+            table.add_column("Author", style="green", width=20)
+
+        for version in versions:
+            row = [
+                str(version.number) + (" *" if version.is_current else ""),
+                version.date.strftime("%Y-%m-%d %H:%M:%S"),
+                version.message[:47] + "..." if len(version.message) > 47 else version.message,
+            ]
+            if verbose:
+                row.append(version.commit)
+                row.append(version.author[:17] + "..." if len(version.author) > 17 else version.author)
+
+            table.add_row(*row)
+
+        console.print(table)
+        console.print(f"\n[dim]Total versions: {len(versions)}[/dim]")
+        console.print("[dim]* = current version[/dim]\n")
+        console.print(f"[dim]Use 'notes show {note_id} -v N' to view version N[/dim]")
+        console.print(f"[dim]Use 'notes diff {note_id}' to compare versions[/dim]")
+        console.print(f"[dim]Use 'notes restore {note_id} -v N' to restore version N[/dim]")
+
+    except FileNotFoundError:
+        console.print(f"[red]Error: Note with ID '{note_id}' not found[/red]")
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+
+
+@main.command("show")
+@click.argument("note_id")
+@click.option("--version", "-v", type=int, help="Show specific version")
+@click.option("--at", help="Show version at date (YYYY-MM-DD)")
+def show_cmd(note_id, version, at):
+    """Show note content, optionally at specific version.
+
+    Examples:
+        notes show 20251216120000              # Show current version
+        notes show 20251216120000 -v 3         # Show version 3
+        notes show 20251216120000 --at 2025-12-15
+    """
+    config = Config()
+    storage = Storage(config)
+
+    try:
+        # Find note
+        file_path = storage.find_by_id(note_id)
+        note = storage.load_note(file_path)
+
+        # Get version if specified
+        if version or at:
+            history_mgr = VersionHistory(config.notes_dir)
+            commit = None
+
+            if version:
+                commit = history_mgr.get_version_by_number(file_path, version)
+                if not commit:
+                    console.print(f"[red]Error: Version {version} not found[/red]")
+                    return
+            elif at:
+                commit = history_mgr.get_file_at_date(file_path, at)
+                if not commit:
+                    console.print(f"[red]Error: No version found at date {at}[/red]")
+                    return
+
+            # Get historical content
+            content_bytes = history_mgr.get_version_content(file_path, commit)
+
+            # Decrypt if encrypted
+            if file_path.suffix == ".gpg":
+                from .encryption import Encryption
+                import tempfile
+
+                encryption = Encryption(config.get("gpg_key"))
+                with tempfile.NamedTemporaryFile(suffix=".gpg", delete=False) as tmp:
+                    tmp.write(content_bytes)
+                    tmp_path = Path(tmp.name)
+
+                try:
+                    content = encryption.decrypt(tmp_path)
+                finally:
+                    tmp_path.unlink()
+            else:
+                content = content_bytes.decode("utf-8")
+
+            # Display historical version
+            version_label = f"Version {version}" if version else f"Version at {at}"
+            console.print(f"\n[bold cyan]{note.title}[/bold cyan] [dim]({version_label})[/dim]\n")
+            console.print(content)
+        else:
+            # Show current version
+            console.print(f"\n[bold cyan]{note.title}[/bold cyan]\n")
+            console.print(note.content)
+
+    except FileNotFoundError:
+        console.print(f"[red]Error: Note with ID '{note_id}' not found[/red]")
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+
+
+@main.command("diff")
+@click.argument("note_id")
+@click.option("--from-ver", "-f", type=int, help="From version (default: previous)")
+@click.option("--to-ver", "-t", type=int, help="To version (default: current)")
+def diff_cmd(note_id, from_ver, to_ver):
+    """Compare note versions.
+
+    Examples:
+        notes diff 20251216120000              # Compare current with previous
+        notes diff 20251216120000 -f 2 -t 4    # Compare version 2 to 4
+    """
+    config = Config()
+    storage = Storage(config)
+
+    try:
+        # Find note
+        file_path = storage.find_by_id(note_id)
+        note = storage.load_note(file_path)
+
+        history_mgr = VersionHistory(config.notes_dir)
+        versions = history_mgr.get_history(file_path)
+
+        if len(versions) < 2:
+            console.print("[yellow]Note has only one version, nothing to compare[/yellow]")
+            return
+
+        # Determine versions to compare
+        if from_ver is None and to_ver is None:
+            # Default: compare current with previous
+            from_commit = versions[1].commit
+            to_commit = versions[0].commit
+            from_label = f"Version {versions[1].number}"
+            to_label = f"Version {versions[0].number} (current)"
+        else:
+            from_commit = history_mgr.get_version_by_number(file_path, from_ver or versions[-1].number)
+            to_commit = history_mgr.get_version_by_number(file_path, to_ver or versions[0].number)
+
+            if not from_commit or not to_commit:
+                console.print("[red]Error: Invalid version numbers[/red]")
+                return
+
+            from_label = f"Version {from_ver or versions[-1].number}"
+            to_label = f"Version {to_ver or versions[0].number}"
+
+        # Get diff
+        diff_output = history_mgr.diff_versions(file_path, from_commit, to_commit)
+
+        if not diff_output:
+            console.print("[yellow]No differences found[/yellow]")
+            return
+
+        # Parse and display diff
+        console.print(f"\n[bold cyan]Comparing:[/bold cyan] {note.title}")
+        console.print(f"[dim]{from_label} → {to_label}[/dim]\n")
+
+        parsed_diff = parse_diff_output(diff_output)
+        for change_type, line in parsed_diff:
+            if change_type == "add":
+                console.print(f"[green]+ {line}[/green]")
+            elif change_type == "del":
+                console.print(f"[red]- {line}[/red]")
+            elif change_type == "hdr":
+                console.print(f"[dim]{line}[/dim]")
+            else:
+                console.print(f"  {line}")
+
+    except FileNotFoundError:
+        console.print(f"[red]Error: Note with ID '{note_id}' not found[/red]")
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+
+
+@main.command("restore")
+@click.argument("note_id")
+@click.option("--version", "-v", type=int, required=True, help="Version to restore")
+@click.option("--preview", is_flag=True, help="Preview version before restoring")
+def restore_cmd(note_id, version, preview):
+    """Restore note to a previous version (non-destructive).
+
+    Examples:
+        notes restore 20251216120000 -v 3          # Restore to version 3
+        notes restore 20251216120000 -v 3 --preview
+    """
+    config = Config()
+    storage = Storage(config)
+
+    try:
+        # Find note
+        file_path = storage.find_by_id(note_id)
+        note = storage.load_note(file_path)
+
+        history_mgr = VersionHistory(config.notes_dir)
+        commit = history_mgr.get_version_by_number(file_path, version)
+
+        if not commit:
+            console.print(f"[red]Error: Version {version} not found[/red]")
+            console.print("[dim]Use 'notes history <id>' to see available versions[/dim]")
+            return
+
+        # Get historical content
+        content_bytes = history_mgr.get_version_content(file_path, commit)
+
+        # Decrypt if encrypted
+        if file_path.suffix == ".gpg":
+            from .encryption import Encryption
+            import tempfile
+
+            encryption = Encryption(config.get("gpg_key"))
+            with tempfile.NamedTemporaryFile(suffix=".gpg", delete=False) as tmp:
+                tmp.write(content_bytes)
+                tmp_path = Path(tmp.name)
+
+            try:
+                content = encryption.decrypt(tmp_path)
+            finally:
+                tmp_path.unlink()
+        else:
+            content = content_bytes.decode("utf-8")
+
+        if preview:
+            # Just show the content
+            console.print(f"\n[bold cyan]Preview:[/bold cyan] {note.title} [dim](Version {version})[/dim]\n")
+            console.print(content)
+            console.print(f"\n[dim]Use 'notes restore {note_id} -v {version}' to restore[/dim]")
+        else:
+            # Restore the version
+            note.content = content
+            storage.save_note(note)
+
+            # Re-index
+            index = SearchIndex(config)
+            index.add_note(note)
+            index.close()
+
+            # Sync if enabled
+            if config.get("auto_sync"):
+                _sync_in_background(config, f"Restore note '{note.title}' to version {version}")
+
+            console.print(f"[green]✓[/green] Note restored to version {version}")
+            console.print(f"[dim]This created a new version. Use 'notes history {note_id}' to see it.[/dim]")
+
+    except FileNotFoundError:
+        console.print(f"[red]Error: Note with ID '{note_id}' not found[/red]")
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
 
 
 class NotesCompleter(Completer):
