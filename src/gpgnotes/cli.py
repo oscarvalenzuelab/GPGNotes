@@ -477,6 +477,24 @@ def open(note_id):
     index = SearchIndex(config)
 
     try:
+        # Sync before opening to get latest version
+        if config.get("auto_sync") and config.get("git_remote"):
+            with console.status("[bold blue]Syncing before opening..."):
+                git_sync = GitSync(config)
+                git_sync.init_repo()
+                if git_sync.has_remote():
+                    git_sync.pull()
+
+            # Rebuild index to reflect any pulled changes
+            notes = []
+            for file_path_item in storage.list_notes():
+                try:
+                    note_item = storage.load_note(file_path_item)
+                    notes.append(note_item)
+                except Exception:
+                    continue
+            index.rebuild_index(notes)
+
         # Validate ID format
         if not (note_id.isdigit() and len(note_id) == 14):
             console.print(f"[red]Error: Invalid note ID '{note_id}'[/red]")
@@ -496,9 +514,11 @@ def open(note_id):
         # Re-index
         index.add_note(note)
 
-        # Sync if enabled (background)
-        if config.get("auto_sync"):
-            _sync_in_background(config, f"Update note: {note.title}")
+        # Sync after editing (synchronous, not background)
+        if config.get("auto_sync") and config.get("git_remote"):
+            with console.status("[bold blue]Syncing changes..."):
+                git_sync = GitSync(config)
+                git_sync.sync(f"Update note: {note.title}")
 
         console.print(f"[green]✓[/green] Note updated: {note.title}")
 

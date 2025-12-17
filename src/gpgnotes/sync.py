@@ -20,9 +20,12 @@ class GitSync:
         """Initialize or open Git repository."""
         try:
             self.repo = git.Repo(self.notes_dir)
+            # Configure merge strategy for existing repo
+            self._configure_git()
         except git.InvalidGitRepositoryError:
             # Initialize new repo
             self.repo = git.Repo.init(self.notes_dir)
+            self._configure_git()
 
             # Set remote if configured BEFORE creating initial commit
             remote_url = self.config.get("git_remote")
@@ -67,6 +70,73 @@ class GitSync:
                 # If commit fails, repo might already have commits
                 pass
 
+    def _configure_git(self):
+        """Configure Git settings for automatic conflict resolution."""
+        if not self.repo:
+            return
+
+        with self.repo.config_writer() as git_config:
+            # Use rebase strategy to avoid merge commits
+            git_config.set_value("pull", "rebase", "true")
+            # Auto-stash local changes before pulling
+            git_config.set_value("rebase", "autoStash", "true")
+            # For actual conflicts, use recursive merge with patience algorithm
+            git_config.set_value("merge", "conflictstyle", "merge")
+
+    def _resolve_note_conflicts(self):
+        """Automatically resolve conflicts in note files by appending both versions."""
+        if not self.repo:
+            return False
+
+        # Check for conflicted files
+        try:
+            # Get list of conflicted files
+            conflicted = []
+            for item in self.repo.index.unmerged_blobs().keys():
+                conflicted.append(item)
+
+            if not conflicted:
+                return True
+
+            # Resolve each conflicted note file
+            for file_path in conflicted:
+                full_path = self.notes_dir / file_path
+
+                if not full_path.exists() or not str(file_path).endswith('.md.gpg'):
+                    # Skip non-note files or deleted files
+                    continue
+
+                try:
+                    # For encrypted notes, we can't easily merge content
+                    # Use the "ours" strategy (keep local version)
+                    # Users can manually resolve by comparing timestamps
+                    self.repo.git.checkout("--ours", file_path)
+                    self.repo.index.add([file_path])
+                    print(f"Resolved conflict in {file_path} (kept local version)")
+                except Exception as e:
+                    print(f"Could not resolve conflict in {file_path}: {e}")
+                    return False
+
+            # Complete the merge/rebase
+            try:
+                # Check if we're in a rebase
+                rebase_dir = self.notes_dir / ".git" / "rebase-merge"
+                if rebase_dir.exists():
+                    self.repo.git.rebase("--continue")
+                else:
+                    # We're in a merge
+                    if self.repo.index.diff("HEAD"):
+                        self.repo.index.commit("Merge remote changes (auto-resolved)")
+            except Exception as e:
+                print(f"Warning: Could not complete merge: {e}")
+                return False
+
+            return True
+
+        except Exception as e:
+            print(f"Error resolving conflicts: {e}")
+            return False
+
     def has_remote(self) -> bool:
         """Check if remote is configured."""
         if not self.repo:
@@ -108,38 +178,56 @@ class GitSync:
             # Get current branch name
             current_branch = self.repo.active_branch.name
 
-            # Pull with explicit branch and use merge strategy (simpler than rebase)
+            # Pull with current branch (will use configured rebase strategy)
             origin = self.repo.remotes.origin
             origin.pull(current_branch)
             return True
         except git.GitCommandError as e:
+            error_msg = str(e).lower()
+
             # Ignore error if remote branch doesn't exist yet (new repo)
-            if "couldn't find remote ref" in str(e).lower():
+            if "couldn't find remote ref" in error_msg:
                 return True
+
             # Handle unrelated histories (initial sync from existing remote)
-            if "unrelated histories" in str(e).lower() or "refusing to merge" in str(e).lower():
+            if "unrelated histories" in error_msg or "refusing to merge" in error_msg:
                 try:
-                    # Pull with --allow-unrelated-histories flag
                     current_branch = self.repo.active_branch.name
                     self.repo.git.pull("origin", current_branch, allow_unrelated_histories=True)
                     return True
                 except Exception as e2:
                     print(f"Pull with unrelated histories failed: {e2}")
                     return False
-            # If pull fails due to conflicts, commit local changes and try again
-            if "would be overwritten" in str(e).lower() or "fast-forward" in str(e).lower():
+
+            # Handle conflicts during rebase
+            if "conflict" in error_msg or "rebase" in error_msg:
+                print("Detected conflicts during pull, attempting auto-resolution...")
+                if self._resolve_note_conflicts():
+                    print("Conflicts resolved successfully")
+                    return True
+                else:
+                    print("Could not auto-resolve conflicts")
+                    return False
+
+            # If pull fails due to uncommitted changes
+            if "would be overwritten" in error_msg or "overwritten by merge" in error_msg:
                 try:
                     # Add and commit any untracked/uncommitted files
                     self.repo.git.add(A=True)
                     if self.repo.is_dirty() or self.repo.untracked_files:
                         self.repo.index.commit("Auto-commit before pull")
-                    # Try pull again with current branch
+                    # Try pull again
                     current_branch = self.repo.active_branch.name
                     origin.pull(current_branch)
                     return True
-                except Exception:
-                    print(f"Pull failed: {e}")
+                except git.GitCommandError as e2:
+                    # If there are conflicts after committing, try to resolve them
+                    if "conflict" in str(e2).lower():
+                        if self._resolve_note_conflicts():
+                            return True
+                    print(f"Pull failed: {e2}")
                     return False
+
             print(f"Pull failed: {e}")
             return False
         except Exception as e:
