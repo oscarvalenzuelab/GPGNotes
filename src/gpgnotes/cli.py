@@ -707,12 +707,33 @@ def sync():
 @click.option("--gpg-key", help="Set GPG key ID")
 @click.option("--auto-sync/--no-auto-sync", default=None, help="Enable/disable auto-sync")
 @click.option("--auto-tag/--no-auto-tag", default=None, help="Enable/disable auto-tagging")
+@click.option(
+    "--llm-provider",
+    help="Set LLM provider (openai, claude, ollama)",
+)
+@click.option("--llm-model", help="Set LLM model name")
+@click.option("--llm-key", help="Set LLM API key (encrypted with GPG)")
 @click.option("--show", is_flag=True, help="Show current configuration")
-def config(editor, git_remote, gpg_key, auto_sync, auto_tag, show):
+def config(
+    editor, git_remote, gpg_key, auto_sync, auto_tag, llm_provider, llm_model, llm_key, show
+):
     """Configure GPGNotes."""
     cfg = Config()
 
     if show:
+        # Get LLM config
+        llm_prov = cfg.get("llm_provider") or "[dim]not configured[/dim]"
+        llm_mod = cfg.get("llm_model") or "[dim]default[/dim]"
+
+        # Check if API key is configured
+        llm_key_status = "[dim]not set[/dim]"
+        if llm_prov and llm_prov != "[dim]not configured[/dim]" and llm_prov != "ollama":
+            api_key = cfg.get_secret(f"{llm_prov}_api_key")
+            if api_key:
+                llm_key_status = f"[green]set ({api_key[:8]}...)[/green]"
+        elif llm_prov == "ollama":
+            llm_key_status = "[dim]not required[/dim]"
+
         # Display current config
         console.print(
             Panel.fit(
@@ -724,8 +745,14 @@ GPG Key: {cfg.get("gpg_key") or "[dim]not configured[/dim]"}
 Auto-sync: {"[green]enabled[/green]" if cfg.get("auto_sync") else "[red]disabled[/red]"}
 Auto-tag: {"[green]enabled[/green]" if cfg.get("auto_tag") else "[red]disabled[/red]"}
 
+[bold]LLM Enhancement:[/bold]
+Provider: {llm_prov}
+Model: {llm_mod}
+API Key: {llm_key_status}
+
 Config file: {cfg.config_file}
 Notes directory: {cfg.notes_dir}
+Secrets file: {cfg._get_secrets_path()}
 """,
                 title="GPGNotes Configuration",
             )
@@ -771,7 +798,59 @@ Notes directory: {cfg.notes_dir}
         status = "enabled" if auto_tag else "disabled"
         console.print(f"[green]✓[/green] Auto-tagging {status}")
 
-    if not any([editor, git_remote, gpg_key, auto_sync is not None, auto_tag is not None, show]):
+    if llm_provider:
+        valid_providers = ["openai", "claude", "ollama"]
+        if llm_provider.lower() not in valid_providers:
+            console.print(
+                f"[red]Error:[/red] Invalid provider. Choose from: {', '.join(valid_providers)}"
+            )
+            return
+
+        cfg.set("llm_provider", llm_provider.lower())
+        console.print(f"[green]✓[/green] LLM provider set to: {llm_provider}")
+
+        if llm_provider.lower() != "ollama":
+            console.print(
+                f"[yellow]Remember to set API key with:[/yellow] "
+                f"notes config --llm-key YOUR_API_KEY"
+            )
+
+    if llm_model:
+        cfg.set("llm_model", llm_model)
+        console.print(f"[green]✓[/green] LLM model set to: {llm_model}")
+
+    if llm_key:
+        # Store API key securely
+        provider = cfg.get("llm_provider")
+        if not provider:
+            console.print("[red]Error:[/red] Please set LLM provider first with --llm-provider")
+            return
+
+        if provider == "ollama":
+            console.print("[yellow]Warning:[/yellow] Ollama doesn't require an API key")
+            return
+
+        # Encrypt and store the key
+        try:
+            cfg.set_secret(f"{provider}_api_key", llm_key)
+            console.print(f"[green]✓[/green] API key for {provider} saved securely (GPG-encrypted)")
+        except Exception as e:
+            console.print(f"[red]Error saving API key:[/red] {e}")
+            return
+
+    if not any(
+        [
+            editor,
+            git_remote,
+            gpg_key,
+            auto_sync is not None,
+            auto_tag is not None,
+            llm_provider,
+            llm_model,
+            llm_key,
+            show,
+        ]
+    ):
         console.print("Use --help to see available options")
 
 
@@ -900,6 +979,101 @@ def export(note_id, format, output):
 
     except Exception as e:
         console.print(f"[red]Error exporting notes: {e}[/red]")
+
+
+@main.command()
+@click.argument("note_id")
+@click.option(
+    "--instructions",
+    "-i",
+    help="Enhancement instructions (e.g., 'fix grammar', 'make more concise')",
+)
+@click.option("--quick", is_flag=True, help="Quick mode: auto-apply without interaction")
+def enhance(note_id, instructions, quick):
+    """Enhance note content using LLM assistance."""
+    config = Config()
+    storage = Storage(config)
+    index = SearchIndex(config)
+
+    try:
+        # Check if LLM is configured
+        if not config.get("llm_provider"):
+            console.print("[red]Error: No LLM provider configured.[/red]")
+            console.print(
+                "\nTo set up LLM enhancement:\n"
+                "  [cyan]notes config --llm-provider openai[/cyan]  # or claude, ollama\n"
+                "  [cyan]notes config --llm-key YOUR_API_KEY[/cyan] # not needed for ollama\n"
+            )
+            return
+
+        # Validate ID format
+        if not (note_id.isdigit() and len(note_id) == 14):
+            console.print(f"[red]Error: Invalid note ID '{note_id}'[/red]")
+            console.print("[yellow]Tip: Use 'notes search <query>' to find note IDs[/yellow]")
+            return
+
+        # Find note by ID
+        try:
+            file_path = storage.find_by_id(note_id)
+        except FileNotFoundError:
+            console.print(f"[red]Error: Note with ID '{note_id}' not found[/red]")
+            return
+
+        # Load note
+        note = storage.load_note(file_path)
+
+        # Quick mode - non-interactive
+        if quick:
+            if not instructions:
+                instructions = "Fix grammar and improve clarity"
+
+            console.print(f"\n[bold blue]Enhancing note:[/bold blue] {note.title}")
+            console.print(f"[bold blue]Instructions:[/bold blue] {instructions}\n")
+
+            try:
+                from .enhance import quick_enhance
+
+                with console.status("[bold blue]Enhancing with LLM..."):
+                    enhanced_note = quick_enhance(note, config, instructions)
+
+                # Save the enhanced note
+                storage.save_note(enhanced_note)
+                index.add_note(enhanced_note)
+
+                console.print("\n[green]✓ Note enhanced and saved[/green]")
+
+                # Sync if enabled
+                if config.get("auto_sync"):
+                    _sync_in_background(config, f"Enhance note: {note.title}")
+
+            except Exception as e:
+                console.print(f"[red]Enhancement failed:[/red] {e}")
+                return
+
+        else:
+            # Interactive mode
+            from .enhance import EnhancementSession
+
+            session = EnhancementSession(note, config)
+
+            # Run interactive enhancement
+            saved = session.enhance(instructions)
+
+            if saved:
+                # Save the enhanced note
+                storage.save_note(note)
+                index.add_note(note)
+
+                console.print("\n[green]✓ Enhanced note saved[/green]")
+
+                # Sync if enabled
+                if config.get("auto_sync"):
+                    _sync_in_background(config, f"Enhance note: {note.title}")
+
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+    finally:
+        index.close()
 
 
 def interactive_mode():
