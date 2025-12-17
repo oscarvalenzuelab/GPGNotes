@@ -5,12 +5,24 @@ All notable changes to GPGNotes will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2025-12-16
+
+### Fixed
+
+- **Git Sync on New Computer**: Fixed critical issue where `notes sync` wouldn't pull existing notes when setting up on a new computer. The `init_repo` now properly fetches and checks out the remote branch before creating any local commits.
+- **Git Push Upstream**: Fixed "no upstream branch" error on first push by automatically setting upstream when pushing to a new remote.
+- **Auto-Reindex After Sync**: Added automatic search index rebuild after `notes sync` to ensure pulled notes appear in search results and `notes list`.
+
+### Changed
+
+- Removed "self-contained" from project description (the tool requires system GPG installation, so it's not fully self-contained).
+
 ## [0.1.0] - 2025-12-16
 
 ### Added
 
 **Initial Release**
-- Self-contained CLI note-taking tool with GPG encryption
+- CLI note-taking tool with GPG encryption
 - Full-text search powered by SQLite FTS5
 - Automatic tag generation using TF-IDF analysis
 - Git synchronization for backup and multi-device sync
@@ -67,4 +79,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sync requires Git remote to be configured manually
 - Initial sync from existing remote requires `--allow-unrelated-histories` (handled automatically)
 
+[0.1.1]: https://github.com/oscarvalenzuelab/gpgnotes/releases/tag/v0.1.1
 [0.1.0]: https://github.com/oscarvalenzuelab/gpgnotes/releases/tag/v0.1.0

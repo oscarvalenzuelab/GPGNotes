@@ -4,7 +4,7 @@
 [![Lint](https://github.com/oscarvalenzuelab/gpgnotes/workflows/Lint/badge.svg)](https://github.com/oscarvalenzuelab/gpgnotes/actions/workflows/lint.yml)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
-A self-contained CLI note-taking tool with GPG encryption, automatic tagging, full-text search, and Git synchronization.
+A CLI note-taking tool with GPG encryption, automatic tagging, full-text search, and Git synchronization.
 
 ## Features
 

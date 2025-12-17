@@ -24,7 +24,37 @@ class GitSync:
             # Initialize new repo
             self.repo = git.Repo.init(self.notes_dir)
 
-            # Create .gitignore
+            # Set remote if configured BEFORE creating initial commit
+            remote_url = self.config.get("git_remote")
+            if remote_url:
+                try:
+                    origin = self.repo.create_remote("origin", remote_url)
+                except git.CommandError:
+                    # Remote already exists
+                    origin = self.repo.remotes.origin
+
+                # Try to fetch and checkout existing remote branch
+                try:
+                    origin.fetch()
+
+                    # Check if remote has branches (existing repo with notes)
+                    if origin.refs:
+                        # Find main or master branch
+                        remote_branch = None
+                        for ref in origin.refs:
+                            if ref.name in ["origin/main", "origin/master"]:
+                                remote_branch = ref.name.split("/")[1]
+                                break
+
+                        if remote_branch:
+                            # Checkout and track the remote branch
+                            self.repo.git.checkout("-b", remote_branch, f"origin/{remote_branch}")
+                            return
+                except Exception as e:
+                    # Remote is empty or unreachable, continue with local init
+                    print(f"Could not fetch from remote: {e}")
+
+            # Create .gitignore (only if we didn't checkout from remote)
             gitignore_path = self.notes_dir / ".gitignore"
             if not gitignore_path.exists():
                 gitignore_path.write_text("*.tmp\n.DS_Store\n")
@@ -36,15 +66,6 @@ class GitSync:
             except Exception:
                 # If commit fails, repo might already have commits
                 pass
-
-            # Set remote if configured
-            remote_url = self.config.get("git_remote")
-            if remote_url:
-                try:
-                    self.repo.create_remote("origin", remote_url)
-                except git.CommandError:
-                    # Remote already exists
-                    pass
 
     def has_remote(self) -> bool:
         """Check if remote is configured."""
@@ -132,7 +153,17 @@ class GitSync:
 
         try:
             origin = self.repo.remotes.origin
-            origin.push()
+            current_branch = self.repo.active_branch.name
+
+            # Try to push with set-upstream in case this is first push
+            try:
+                origin.push(refspec=f"{current_branch}:{current_branch}", set_upstream=True)
+            except git.GitCommandError as e:
+                # If already has upstream, try regular push
+                if "already exists" in str(e).lower() or "up-to-date" in str(e).lower():
+                    origin.push()
+                else:
+                    raise
             return True
         except Exception as e:
             print(f"Push failed: {e}")

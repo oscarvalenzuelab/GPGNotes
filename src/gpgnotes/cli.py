@@ -161,7 +161,7 @@ def _background_sync():
 
 @click.group(invoke_without_command=True)
 @click.pass_context
-@click.version_option(version="0.1.0")
+@click.version_option(version="0.1.1")
 def main(ctx):
     """GPGNotes - Encrypted note-taking with Git sync."""
     # Register exit handler for background sync
@@ -658,6 +658,23 @@ def sync():
         result = git_sync.sync()
         if result:
             console.print("[green]✓[/green] Notes synced successfully")
+
+            # Rebuild index to include any pulled notes
+            with console.status("[bold blue]Rebuilding index..."):
+                storage = Storage(config)
+                index = SearchIndex(config)
+                notes = []
+                for file_path in storage.list_notes():
+                    try:
+                        note = storage.load_note(file_path)
+                        notes.append(note)
+                    except Exception:
+                        continue
+                index.rebuild_index(notes)
+                index.close()
+
+            if notes:
+                console.print(f"[green]✓[/green] Indexed {len(notes)} notes")
         elif result is False:
             console.print("[yellow]⚠[/yellow] Sync completed with warnings (check for conflicts)")
         else:
