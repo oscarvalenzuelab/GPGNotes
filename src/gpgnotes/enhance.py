@@ -8,7 +8,6 @@ from prompt_toolkit.validation import ValidationError, Validator
 from rich.console import Console
 from rich.panel import Panel
 from rich.syntax import Syntax
-from rich.table import Table
 
 from .config import Config
 from .llm import get_provider
@@ -89,22 +88,21 @@ class EnhancementSession:
 
     def _show_menu(self) -> str:
         """Show interactive menu and get user choice."""
-        console.print("\n[bold cyan]What would you like to do?[/bold cyan]")
+        console.print("\n[bold cyan]What would you like to do?[/bold cyan]\n")
 
-        table = Table(show_header=False, box=None, padding=(0, 2))
-        table.add_column(style="green bold")
-        table.add_column()
+        options = [
+            ("[a]", "Accept changes and save"),
+            ("[r]", "Reject changes (keep original)"),
+            ("[i]", "Iterate with new instructions"),
+            ("[d]", "Show detailed diff"),
+            ("[b]", "Back to previous version"),
+            ("[v]", "View current version"),
+            ("[o]", "View original version"),
+            ("[q]", "Quit without saving"),
+        ]
 
-        table.add_row("[a]", "Accept changes and save")
-        table.add_row("[r]", "Reject changes (keep original)")
-        table.add_row("[i]", "Iterate with new instructions")
-        table.add_row("[d]", "Show detailed diff")
-        table.add_row("[b]", "Back to previous version")
-        table.add_row("[v]", "View current version")
-        table.add_row("[o]", "View original version")
-        table.add_row("[q]", "Quit without saving")
-
-        console.print(table)
+        for key, description in options:
+            console.print(f"  [green bold]{key}[/green bold] {description}")
 
         validator = ChoiceValidator(["a", "r", "i", "d", "b", "v", "o", "q"])
 
@@ -120,21 +118,20 @@ class EnhancementSession:
 
     def _get_default_instructions(self) -> str:
         """Show preset enhancement options."""
-        console.print("\n[bold cyan]Choose enhancement style:[/bold cyan]")
+        console.print("\n[bold cyan]Choose enhancement style:[/bold cyan]\n")
 
-        table = Table(show_header=False, box=None, padding=(0, 2))
-        table.add_column(style="green bold")
-        table.add_column()
+        presets_display = [
+            ("[1]", "Fix grammar and spelling"),
+            ("[2]", "Improve clarity and readability"),
+            ("[3]", "Make more concise"),
+            ("[4]", "Make more professional"),
+            ("[5]", "Make more casual"),
+            ("[6]", "Add bullet points/structure"),
+            ("[c]", "Custom instructions"),
+        ]
 
-        table.add_row("[1]", "Fix grammar and spelling")
-        table.add_row("[2]", "Improve clarity and readability")
-        table.add_row("[3]", "Make more concise")
-        table.add_row("[4]", "Make more professional")
-        table.add_row("[5]", "Make more casual")
-        table.add_row("[6]", "Add bullet points/structure")
-        table.add_row("[c]", "Custom instructions")
-
-        console.print(table)
+        for key, description in presets_display:
+            console.print(f"  [green bold]{key}[/green bold] {description}")
 
         try:
             choice = prompt("\nChoice (or press Enter for grammar): ").lower().strip() or "1"
