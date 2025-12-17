@@ -5,6 +5,29 @@ All notable changes to GPGNotes will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.4] - 2025-12-16
+
+### Added
+
+- **LLM Enhancement**: AI-powered note enhancement with support for OpenAI and Ollama providers.
+- **Interactive Refinement**: Human-in-the-loop workflow with iterative improvements, version history, and diff viewing.
+- **GPG-Encrypted Secret Storage**: Secure API key storage using GPG encryption for LLM providers.
+- **Enhancement Presets**: Quick enhancement options (grammar fix, clarity, conciseness, tone adjustment, structure).
+- **Custom Instructions**: Support for custom enhancement instructions in both interactive and quick modes.
+- **Text Wrapping**: Automatic text wrapping at 80 columns for vim, nano, and emacs.
+- **Markdown Editor Support**: Vim/neovim now opens with markdown syntax highlighting, spell check, and proper wrapping.
+
+### Fixed
+
+- **Config Command in Interactive Mode**: Fixed AttributeError when running `config` command in interactive mode.
+- **Editor Configuration**: Fixed infinite single-line notes by adding proper text wrapping configuration.
+- **Vim Markdown Support**: Vim now properly handles markdown formatting (bold, italic) with syntax highlighting.
+
+### Changed
+
+- LLM dependencies are now optional (install with `pip install gpgnotes[llm]`).
+- Editor commands now include appropriate flags for optimal markdown editing experience.
+
 ## [0.1.3] - 2025-12-16
 
 ### Fixed
