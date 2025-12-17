@@ -5,6 +5,58 @@ All notable changes to GPGNotes will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2025-12-17
+
+### Added
+
+- **Interactive Pagination**: Added pagination for `notes list` and `notes search` commands (#19).
+  - Interactive navigation with `n` (next page), `p` (previous page), `q` (quit)
+  - `--page-size N` option to customize results per page (default: 20)
+  - `--no-pagination` flag to disable pagination
+  - Displays page counter (e.g., "Page 1 of 5")
+
+- **Note Templates**: Full template system with built-in and custom template support (#22).
+  - `notes template list` - List all available templates (built-in and custom)
+  - `notes template show <name>` - Preview a template
+  - `notes template create <name>` - Create custom template from editor
+  - `notes template edit <name>` - Edit custom template
+  - `notes template delete <name>` - Delete custom template
+  - `notes new --template <name>` - Create note from template
+  - `--var key=value` support for template variable substitution
+  - 5 built-in templates: meeting, project, bug, journal, research
+  - Variable syntax: `{{title}}`, `{{date}}`, `{{datetime}}`, etc.
+  - Custom templates stored in `~/.gpgnotes/templates/custom/`
+
+- **Version History**: Git-based version history tracking for notes (#24).
+  - `notes history <id>` - Show all versions of a note with commit history
+  - `notes show <id> --version <commit>` - View specific version of a note
+  - `notes diff <id> --from <commit> --to <commit>` - Compare two versions
+  - `notes restore <id> --version <commit>` - Restore note to previous version
+  - Decrypts `.gpg` files for readable diffs
+
+- **Markdown Rendering**: Rich markdown preview in terminal (#29).
+  - `notes show <id> --render` - Display note with formatted markdown
+  - `notes preview <id>` - Shortcut for rendered preview
+  - Supports headers, lists, code blocks, links, and formatting
+
+- **URL Import/Web Clipper**: Import web content as notes (#31).
+  - `notes import <url>` - Import content from URL
+  - `notes clip <url>` - Shortcut alias for web clipping
+  - HTML to Markdown conversion with metadata preservation
+  - Adds source URL and clipped timestamp to note frontmatter
+  - Custom User-Agent header for better compatibility
+
+### Changed
+
+- **Phase 1 Complete**: All Phase 1 (Foundation & Core UX) milestone features implemented.
+- Version bump from 0.1.13 to 0.2.1 to reflect new feature set.
+
+### Fixed
+
+- **Diff Display**: Fixed version diff showing encrypted binary data instead of decrypted content.
+- **Code Formatting**: Applied `ruff format` to all source files for consistency.
+- **Import Order**: Fixed import ordering issues detected by `ruff check`.
+
 ## [0.1.12] - 2025-12-16
 
 ### Fixed
@@ -255,6 +307,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sync requires Git remote to be configured manually
 - Initial sync from existing remote requires `--allow-unrelated-histories` (handled automatically)
 
+[0.2.1]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.2.1
 [0.1.12]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.1.12
 [0.1.11]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.1.11
 [0.1.10]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.1.10
