@@ -1361,9 +1361,8 @@ def import_file(sources, title, tags):
         notes import *.md
     """
     from .importer import ImportError as ImporterError
-    from .importer import MissingDependencyError
+    from .importer import MissingDependencyError, import_url
     from .importer import import_file as do_import
-    from .importer import import_url
     from .llm import sanitize_for_gpg
 
     config = Config()
@@ -1681,7 +1680,6 @@ tags: {note.tags}
         console.print("[dim]Enter template content (Ctrl+D or Ctrl+Z when done):[/dim]\n")
 
         try:
-            import sys
 
             lines = []
             while True:
@@ -1738,7 +1736,7 @@ def template_edit(name):
         subprocess.run([editor, str(template_path)], check=True)
         console.print(f"[green]✓[/green] Template '{name}' updated")
     except subprocess.CalledProcessError:
-        console.print(f"[red]Error editing template[/red]")
+        console.print("[red]Error editing template[/red]")
     except FileNotFoundError:
         console.print(f"[red]Editor '{editor}' not found[/red]")
 
@@ -1889,8 +1887,9 @@ def show_cmd(note_id, version, at, render, raw):
 
             # Decrypt if encrypted
             if file_path.suffix == ".gpg":
-                from .encryption import Encryption
                 import tempfile
+
+                from .encryption import Encryption
 
                 encryption = Encryption(config.get("gpg_key"))
                 with tempfile.NamedTemporaryFile(suffix=".gpg", delete=False) as tmp:
@@ -2073,8 +2072,9 @@ def restore_cmd(note_id, version, preview):
 
         # Decrypt if encrypted
         if file_path.suffix == ".gpg":
-            from .encryption import Encryption
             import tempfile
+
+            from .encryption import Encryption
 
             encryption = Encryption(config.get("gpg_key"))
             with tempfile.NamedTemporaryFile(suffix=".gpg", delete=False) as tmp:

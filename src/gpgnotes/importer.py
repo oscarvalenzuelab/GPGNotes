@@ -333,7 +333,7 @@ def import_url(url: str, title: Optional[str] = None) -> Tuple[str, str]:
                 self.markdown.append("\n```\n")
             elif tag == "a":
                 href = dict(attrs).get("href", "")
-                self.markdown.append(f"[")
+                self.markdown.append("[")
                 self.current_tag = ("a", href)
             elif tag == "ul":
                 self.list_level += 1
