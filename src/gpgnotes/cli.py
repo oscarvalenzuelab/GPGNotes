@@ -1098,6 +1098,7 @@ def interactive_mode():
             "  [green]list[/green] - List all notes\n"
             "  [green]open <ID>[/green] - Open a note\n"
             "  [green]delete <ID>[/green] - Delete a note\n"
+            "  [green]enhance <ID>[/green] - Enhance note with AI\n"
             "  [green]tags[/green] - Show all tags\n"
             "  [green]export <ID>[/green] - Export a note\n"
             "  [green]sync[/green] - Sync with Git\n"
@@ -1109,7 +1110,19 @@ def interactive_mode():
     )
 
     commands = WordCompleter(
-        ["new", "list", "open", "delete", "tags", "export", "sync", "config", "help", "exit"]
+        [
+            "new",
+            "list",
+            "open",
+            "delete",
+            "enhance",
+            "tags",
+            "export",
+            "sync",
+            "config",
+            "help",
+            "exit",
+        ]
     )
 
     while True:
@@ -1135,6 +1148,7 @@ def interactive_mode():
                         "  [green]list[/green] - List all notes\n"
                         "  [green]open <ID>[/green] - Open a note by ID\n"
                         "  [green]delete <ID>[/green] - Delete a note by ID\n"
+                        "  [green]enhance <ID>[/green] - Enhance note with AI\n"
                         "  [green]tags[/green] - Show all tags\n"
                         "  [green]export <ID>[/green] - Export a note by ID\n"
                         "  [green]sync[/green] - Sync with Git\n"
@@ -1160,6 +1174,9 @@ def interactive_mode():
             elif command == "tags":
                 ctx = click.Context(tags)
                 ctx.invoke(tags)
+            elif command == "enhance" and args:
+                ctx = click.Context(enhance)
+                ctx.invoke(enhance, note_id=args, instructions=None, quick=False)
             elif command == "export" and args:
                 ctx = click.Context(export)
                 ctx.invoke(export, note_id=args, format="markdown", output=None)
@@ -1180,7 +1197,7 @@ def interactive_mode():
                     llm_key=None,
                     show=True,
                 )
-            elif command in ["open", "delete", "export"] and not args:
+            elif command in ["open", "delete", "enhance", "export"] and not args:
                 console.print(f"[yellow]Usage: {command} <ID>[/yellow]")
                 console.print("[dim]Tip: Use search to find note IDs[/dim]")
             else:
