@@ -3,6 +3,7 @@
 import atexit
 import sys
 import threading
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
@@ -16,6 +17,7 @@ from rich.panel import Panel
 from rich.table import Table
 
 from .config import Config
+from .daily import DailyNoteManager
 from .history import VersionHistory, parse_diff_output
 from .index import SearchIndex
 from .note import Note
@@ -207,7 +209,7 @@ def _background_sync():
 
 @click.group(invoke_without_command=True)
 @click.pass_context
-@click.version_option(version="0.2.3")
+@click.version_option(version="0.2.4")
 def main(ctx):
     """GPGNotes - Encrypted note-taking with Git sync."""
     # Register exit handler for background sync
@@ -1793,6 +1795,217 @@ def templates_alias():
     ctx.invoke(template_list)
 
 
+# =============================================================================
+# Daily Notes (Captain's Log)
+# =============================================================================
+
+
+@main.group(invoke_without_command=True)
+@click.argument("entry", required=False)
+@click.option("--time", "-t", is_flag=True, help="Add timestamp prefix to entry")
+@click.pass_context
+def daily(ctx, entry, time):
+    """Quick daily log entry or manage daily notes.
+
+    Examples:
+        notes daily "Fixed the auth bug"           # Quick entry
+        notes daily "Started deployment" --time    # Entry with timestamp
+        notes daily show                           # View today's entries
+        notes daily summary --month                # Monthly summary
+    """
+    config = Config()
+
+    # Check if GPG key is configured
+    if not config.get("gpg_key"):
+        console.print("[red]Error: GPG key not configured. Run 'notes init' first.[/red]")
+        sys.exit(1)
+
+    if entry:
+        # Quick append mode - add entry to today's log
+        manager = DailyNoteManager(config)
+        note = manager.get_or_create_daily_note(datetime.now())
+        manager.append_entry(note, entry, with_time=time)
+
+        console.print(f"[green]✓[/green] Added to {note.title}")
+
+        # Sync if enabled
+        if config.get("auto_sync"):
+            _sync_in_background(config, f"Daily entry: {entry[:30]}...")
+
+    elif ctx.invoked_subcommand is None:
+        # No entry and no subcommand - show today's entries
+        manager = DailyNoteManager(config)
+        note = manager.get_daily_note(datetime.now())
+
+        if note:
+            console.print(Panel(Markdown(note.content), title=note.title))
+            console.print(f"\n[dim]Entries: {manager.count_entries(note)}[/dim]")
+        else:
+            console.print("[yellow]No entries for today yet.[/yellow]")
+            console.print("[dim]Use 'notes daily \"your entry\"' to add one.[/dim]")
+
+
+@daily.command("show")
+@click.option("--date", "-d", help="Date to show (YYYY-MM-DD), defaults to today")
+@click.option("--week", "-w", is_flag=True, help="Show this week's entries")
+def daily_show(date, week):
+    """View daily note entries."""
+    config = Config()
+    manager = DailyNoteManager(config)
+
+    if week:
+        # Show week's entries
+        notes = manager.get_notes_for_week(datetime.now())
+        if not notes:
+            console.print("[yellow]No entries found for this week.[/yellow]")
+            return
+
+        for note in notes:
+            console.print(Panel(Markdown(note.content), title=note.title))
+            console.print()
+    else:
+        # Show specific day
+        if date:
+            try:
+                target_date = datetime.strptime(date, "%Y-%m-%d")
+            except ValueError:
+                console.print("[red]Error: Invalid date format. Use YYYY-MM-DD[/red]")
+                return
+        else:
+            target_date = datetime.now()
+
+        note = manager.get_daily_note(target_date)
+
+        if note:
+            console.print(Panel(Markdown(note.content), title=note.title))
+            console.print(f"\n[dim]Entries: {manager.count_entries(note)}[/dim]")
+        else:
+            date_str = target_date.strftime("%Y-%m-%d")
+            console.print(f"[yellow]No entries for {date_str}.[/yellow]")
+
+
+@daily.command("summary")
+@click.option("--month", "-m", is_flag=True, help="Generate monthly summary")
+@click.option("--week", "-w", is_flag=True, help="Generate weekly summary")
+@click.option("--year", type=int, help="Year for summary (default: current)")
+@click.option("--month-num", type=int, help="Month number 1-12 (default: current)")
+@click.option("--save", "-s", is_flag=True, help="Save summary as a new note")
+def daily_summary(month, week, year, month_num, save):
+    """Generate summary from daily notes.
+
+    Examples:
+        notes daily summary --month              # Current month summary
+        notes daily summary --week               # Current week summary
+        notes daily summary --month --year 2025 --month-num 11  # Nov 2025
+    """
+    config = Config()
+    manager = DailyNoteManager(config)
+
+    now = datetime.now()
+
+    if week:
+        notes = manager.get_notes_for_week(now)
+        period_type = f"Week of {(now - timedelta(days=now.weekday())).strftime('%Y-%m-%d')}"
+    else:
+        # Default to month
+        target_year = year or now.year
+        target_month = month_num or now.month
+        notes = manager.get_notes_for_month(target_year, target_month)
+        period_type = f"{datetime(target_year, target_month, 1).strftime('%B %Y')}"
+
+    if not notes:
+        console.print(f"[yellow]No daily notes found for {period_type}.[/yellow]")
+        return
+
+    with console.status(f"[bold blue]Generating summary for {period_type}..."):
+        summary = manager.generate_summary(notes, period_type)
+
+    console.print(Panel(Markdown(summary), title=f"Summary: {period_type}"))
+
+    if save:
+        # Save as a new note
+        from .note import Note as NoteClass
+
+        summary_note = NoteClass(
+            title=f"Summary: {period_type}",
+            content=summary,
+            tags=["summary", "daily", "auto-generated"],
+        )
+        storage = Storage(config)
+        storage.save_note(summary_note)
+
+        index = SearchIndex(config)
+        index.add_note(summary_note)
+        index.close()
+
+        console.print(f"\n[green]✓[/green] Summary saved as note: {summary_note.note_id}")
+
+
+@main.command("today")
+def today_cmd():
+    """Open today's daily note in editor.
+
+    Creates the note if it doesn't exist.
+    """
+    config = Config()
+
+    # Check if GPG key is configured
+    if not config.get("gpg_key"):
+        console.print("[red]Error: GPG key not configured. Run 'notes init' first.[/red]")
+        sys.exit(1)
+
+    manager = DailyNoteManager(config)
+    note = manager.get_or_create_daily_note(datetime.now())
+
+    # Edit the note
+    storage = Storage(config)
+    note = storage.edit_note(note.file_path)
+
+    # Update index
+    index = SearchIndex(config)
+    index.add_note(note)
+    index.close()
+
+    console.print(f"[green]✓[/green] Updated: {note.title}")
+
+    # Sync if enabled
+    if config.get("auto_sync"):
+        _sync_in_background(config, f"Update daily: {note.title}")
+
+
+@main.command("yesterday")
+def yesterday_cmd():
+    """Open yesterday's daily note in editor.
+
+    Creates the note if it doesn't exist.
+    """
+    config = Config()
+
+    # Check if GPG key is configured
+    if not config.get("gpg_key"):
+        console.print("[red]Error: GPG key not configured. Run 'notes init' first.[/red]")
+        sys.exit(1)
+
+    manager = DailyNoteManager(config)
+    yesterday = datetime.now() - timedelta(days=1)
+    note = manager.get_or_create_daily_note(yesterday)
+
+    # Edit the note
+    storage = Storage(config)
+    note = storage.edit_note(note.file_path)
+
+    # Update index
+    index = SearchIndex(config)
+    index.add_note(note)
+    index.close()
+
+    console.print(f"[green]✓[/green] Updated: {note.title}")
+
+    # Sync if enabled
+    if config.get("auto_sync"):
+        _sync_in_background(config, f"Update daily: {note.title}")
+
+
 @main.command("history")
 @click.argument("note_id")
 @click.option("--verbose", "-v", is_flag=True, help="Show detailed history")
@@ -2186,6 +2399,9 @@ class NotesCompleter(Completer):
         "sync",
         "config",
         "history",
+        "daily",
+        "today",
+        "yesterday",
         "help",
         "exit",
     ]
@@ -2270,6 +2486,9 @@ def interactive_mode():
             "  [green]import <file|URL>[/green] - Import file/URL as note\n"
             "  [green]clip <URL>[/green] - Clip web page as note\n"
             "  [green]enhance <ID>[/green] - Enhance note with AI\n"
+            '  [green]daily "entry"[/green] - Quick daily log entry\n'
+            "  [green]today[/green] - Open today's daily note\n"
+            "  [green]yesterday[/green] - Open yesterday's note\n"
             "  [green]tags[/green] - Show all tags\n"
             "  [green]templates[/green] - List note templates\n"
             "  [green]export <ID>[/green] - Export a note\n"
@@ -2316,6 +2535,9 @@ def interactive_mode():
                         "  [green]import <file|URL>[/green] - Import file or URL as note\n"
                         "  [green]clip <URL>[/green] - Clip web page as note\n"
                         "  [green]enhance <ID>[/green] - Enhance note with AI\n"
+                        '  [green]daily "entry"[/green] - Quick daily log entry\n'
+                        "  [green]today[/green] - Open today's daily note\n"
+                        "  [green]yesterday[/green] - Open yesterday's note\n"
                         "  [green]tags[/green] - Show all tags\n"
                         "  [green]templates[/green] - List available templates\n"
                         "  [green]export <ID>[/green] - Export a note by ID\n"
@@ -2428,6 +2650,21 @@ def interactive_mode():
             elif command == "clip" and not args:
                 console.print("[yellow]Usage: clip <URL>[/yellow]")
                 console.print("[dim]Example: clip https://example.com/article[/dim]")
+            elif command == "daily":
+                if args:
+                    # Quick entry mode
+                    ctx = click.Context(daily)
+                    ctx.invoke(daily, entry=args, time=False)
+                else:
+                    # Show today's entries
+                    ctx = click.Context(daily)
+                    ctx.invoke(daily, entry=None, time=False)
+            elif command == "today":
+                ctx = click.Context(today_cmd)
+                ctx.invoke(today_cmd)
+            elif command == "yesterday":
+                ctx = click.Context(yesterday_cmd)
+                ctx.invoke(yesterday_cmd)
             else:
                 # Treat as search query
                 ctx = click.Context(search)
