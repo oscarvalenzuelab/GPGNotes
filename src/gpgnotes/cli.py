@@ -1123,7 +1123,8 @@ def export(note_id, format, output, plain):
             ext = extensions.get(format, ".md")
 
             # Create plain folder path mirroring the notes structure
-            plain_dir = config.config_dir / "plain"
+            # Must be inside notes_dir so it's included in git sync
+            plain_dir = config.notes_dir / "plain"
             # Use note's relative path (YYYY/MM/filename)
             rel_path = file_path.relative_to(config.notes_dir)
             # Change extension from .md.gpg to the export format
