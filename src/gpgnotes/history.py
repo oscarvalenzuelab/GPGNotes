@@ -103,7 +103,9 @@ class VersionHistory:
             )
             return result.stdout  # Raw bytes
         except subprocess.CalledProcessError as e:
-            raise FileNotFoundError(f"Version not found: {e.stderr.decode('utf-8', errors='ignore')}")
+            raise FileNotFoundError(
+                f"Version not found: {e.stderr.decode('utf-8', errors='ignore')}"
+            )
 
     def get_version_by_number(self, file_path: Path, version_num: int) -> Optional[str]:
         """Get commit hash by version number."""
