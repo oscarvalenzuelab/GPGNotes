@@ -76,19 +76,63 @@ class GitSync:
             return
 
         with self.repo.config_writer() as git_config:
-            # Use rebase strategy to avoid merge commits
-            git_config.set_value("pull", "rebase", "true")
-            # Auto-stash local changes before pulling
-            git_config.set_value("rebase", "autoStash", "true")
-            # For actual conflicts, use recursive merge with patience algorithm
+            # Don't use rebase by default - merge is safer for encrypted files
+            git_config.set_value("pull", "rebase", "false")
+            # Use recursive merge strategy with ours preference
             git_config.set_value("merge", "conflictstyle", "merge")
+            # Set default merge strategy
+            git_config.set_value("pull", "ff", "only")
 
-    def _resolve_note_conflicts(self):
-        """Automatically resolve conflicts in note files by appending both versions."""
+    def _fix_detached_head(self) -> bool:
+        """Fix detached HEAD state by checking out the branch."""
         if not self.repo:
             return False
 
-        # Check for conflicted files
+        try:
+            # Check if HEAD is detached
+            if self.repo.head.is_detached:
+                print("Detected detached HEAD, fixing...")
+                # Get the main/master branch
+                branch_name = None
+                for ref in self.repo.references:
+                    if ref.name in ["main", "master"]:
+                        branch_name = ref.name
+                        break
+
+                if branch_name:
+                    self.repo.git.checkout(branch_name)
+                    print(f"Checked out {branch_name}")
+                    return True
+                else:
+                    # Create main branch if it doesn't exist
+                    self.repo.git.checkout("-b", "main")
+                    print("Created and checked out main branch")
+                    return True
+            return True
+        except Exception as e:
+            print(f"Could not fix detached HEAD: {e}")
+            return False
+
+    def _abort_rebase_if_active(self) -> bool:
+        """Abort rebase if one is in progress."""
+        try:
+            rebase_dir = self.notes_dir / ".git" / "rebase-merge"
+            rebase_apply_dir = self.notes_dir / ".git" / "rebase-apply"
+
+            if rebase_dir.exists() or rebase_apply_dir.exists():
+                print("Aborting stuck rebase...")
+                self.repo.git.rebase("--abort")
+                return True
+            return True
+        except Exception as e:
+            print(f"Could not abort rebase: {e}")
+            return False
+
+    def _resolve_note_conflicts(self):
+        """Automatically resolve conflicts in note files."""
+        if not self.repo:
+            return False
+
         try:
             # Get list of conflicted files
             conflicted = []
@@ -109,7 +153,6 @@ class GitSync:
                 try:
                     # For encrypted notes, we can't easily merge content
                     # Use the "ours" strategy (keep local version)
-                    # Users can manually resolve by comparing timestamps
                     self.repo.git.checkout("--ours", file_path)
                     self.repo.index.add([file_path])
                     print(f"Resolved conflict in {file_path} (kept local version)")
@@ -117,16 +160,11 @@ class GitSync:
                     print(f"Could not resolve conflict in {file_path}: {e}")
                     return False
 
-            # Complete the merge/rebase
+            # Complete the merge
             try:
-                # Check if we're in a rebase
-                rebase_dir = self.notes_dir / ".git" / "rebase-merge"
-                if rebase_dir.exists():
-                    self.repo.git.rebase("--continue")
-                else:
-                    # We're in a merge
-                    if self.repo.index.diff("HEAD"):
-                        self.repo.index.commit("Merge remote changes (auto-resolved)")
+                if self.repo.index.diff("HEAD"):
+                    self.repo.index.commit("Merge remote changes (auto-resolved)")
+                    print("Merge completed successfully")
             except Exception as e:
                 print(f"Warning: Could not complete merge: {e}")
                 return False
@@ -174,14 +212,33 @@ class GitSync:
         if not self.repo or not self.has_remote():
             return False
 
+        # Fix detached HEAD if present
+        if not self._fix_detached_head():
+            return False
+
+        # Abort any stuck rebase
+        if not self._abort_rebase_if_active():
+            return False
+
         try:
             # Get current branch name
-            current_branch = self.repo.active_branch.name
+            try:
+                current_branch = self.repo.active_branch.name
+            except TypeError:
+                # HEAD is detached, fix it
+                self._fix_detached_head()
+                current_branch = self.repo.active_branch.name
 
-            # Pull with current branch (will use configured rebase strategy)
+            # Pull with current branch using merge strategy (ff-only first)
             origin = self.repo.remotes.origin
-            origin.pull(current_branch)
-            return True
+            try:
+                origin.pull(current_branch, ff_only=True)
+                return True
+            except git.GitCommandError:
+                # Fast-forward failed, try regular merge
+                origin.pull(current_branch)
+                return True
+
         except git.GitCommandError as e:
             error_msg = str(e).lower()
 
@@ -199,8 +256,8 @@ class GitSync:
                     print(f"Pull with unrelated histories failed: {e2}")
                     return False
 
-            # Handle conflicts during rebase
-            if "conflict" in error_msg or "rebase" in error_msg:
+            # Handle merge conflicts
+            if "conflict" in error_msg or "merge conflict" in error_msg:
                 print("Detected conflicts during pull, attempting auto-resolution...")
                 if self._resolve_note_conflicts():
                     print("Conflicts resolved successfully")
@@ -237,6 +294,10 @@ class GitSync:
     def push(self) -> bool:
         """Push changes to remote."""
         if not self.repo or not self.has_remote():
+            return False
+
+        # Fix detached HEAD if present
+        if not self._fix_detached_head():
             return False
 
         try:
