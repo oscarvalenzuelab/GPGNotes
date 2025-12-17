@@ -1205,6 +1205,7 @@ def import_file(files, title, tags):
     from .importer import ImportError as ImporterError
     from .importer import MissingDependencyError
     from .importer import import_file as do_import
+    from .llm import sanitize_for_gpg
 
     config = Config()
 
@@ -1236,6 +1237,9 @@ def import_file(files, title, tags):
                 # Import the file
                 with console.status(f"[bold blue]Importing {file_path.name}..."):
                     note_title, content = do_import(file_path, title)
+                    # Sanitize content for GPG (convert smart quotes, etc.)
+                    content = sanitize_for_gpg(content)
+                    note_title = sanitize_for_gpg(note_title)
 
                 # Create note
                 note = Note(title=note_title, content=content, tags=tag_list.copy())

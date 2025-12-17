@@ -5,15 +5,15 @@ from abc import ABC, abstractmethod
 from typing import Optional
 
 
-def sanitize_llm_output(text: str) -> str:
+def sanitize_for_gpg(text: str) -> str:
     """
-    Sanitize LLM output to remove characters that can't be encoded in latin-1.
+    Sanitize text to remove characters that can't be encoded in latin-1.
 
     GPG encryption uses latin-1 encoding, so we need to convert or remove
-    Unicode characters that LLMs often produce (smart quotes, etc.).
+    Unicode characters (smart quotes, em dashes, etc.).
 
     Args:
-        text: The raw LLM output
+        text: The text to sanitize
 
     Returns:
         Sanitized text safe for latin-1 encoding
@@ -120,7 +120,7 @@ Provide ONLY the enhanced text without explanations or meta-commentary."""
             )
 
             result = response.choices[0].message.content.strip()
-            return sanitize_llm_output(result)
+            return sanitize_for_gpg(result)
         except Exception as e:
             raise RuntimeError(f"OpenAI API error: {e}")
 
@@ -174,7 +174,7 @@ Provide ONLY the enhanced text without explanations or meta-commentary."""
             )
 
             result = response.content[0].text.strip()
-            return sanitize_llm_output(result)
+            return sanitize_for_gpg(result)
         except Exception as e:
             raise RuntimeError(f"Claude API error: {e}")
 
@@ -227,7 +227,7 @@ Provide ONLY the enhanced text without explanations or meta-commentary."""
             )
 
             result = response["message"]["content"].strip()
-            return sanitize_llm_output(result)
+            return sanitize_for_gpg(result)
         except Exception as e:
             raise RuntimeError(f"Ollama API error: {e}")
 
