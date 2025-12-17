@@ -20,6 +20,7 @@ from .note import Note
 from .storage import Storage
 from .sync import GitSync
 from .tagging import AutoTagger
+from .templates import TemplateEngine, TemplateManager
 
 console = Console()
 
@@ -409,8 +410,16 @@ You're ready to start! Try:
 @main.command()
 @click.argument("title", required=False)
 @click.option("--tags", "-t", help="Comma-separated tags")
-def new(title, tags):
-    """Create a new note."""
+@click.option("--template", help="Template to use")
+@click.option("--var", multiple=True, help="Template variable in key=value format")
+def new(title, tags, template, var):
+    """Create a new note, optionally from a template.
+
+    Examples:
+        notes new "Team Meeting"                    # Blank note
+        notes new "Sprint Planning" --template meeting --var project="Backend"
+        notes new "Bug Fix" --template bug
+    """
     config = Config()
 
     # Check if GPG key is configured
@@ -429,8 +438,38 @@ def new(title, tags):
     # Parse tags
     tag_list = [t.strip() for t in tags.split(",")] if tags else []
 
-    # Create note with minimal content
-    note = Note(title=title, content="", tags=tag_list)
+    # Initialize template manager
+    templates_dir = config.config_dir / "templates"
+    template_mgr = TemplateManager(templates_dir)
+
+    # Handle template if specified
+    content = ""
+    if template:
+        template_content = template_mgr.get_template(template)
+        if not template_content:
+            console.print(f"[red]Error: Template '{template}' not found[/red]")
+            console.print("[yellow]Use 'notes templates' to list available templates[/yellow]")
+            sys.exit(1)
+
+        # Parse variables
+        variables = TemplateEngine.parse_variables(list(var))
+        variables["title"] = title
+
+        # Check for missing required variables
+        required_vars = TemplateEngine.extract_variables(template_content)
+        missing_vars = [v for v in required_vars if v not in variables]
+
+        # Prompt for missing variables
+        for var_name in missing_vars:
+            value = prompt(f"Enter value for '{var_name}' [optional]: ").strip()
+            if value:
+                variables[var_name] = value
+
+        # Render template
+        content = TemplateEngine.render(template_content, variables)
+
+    # Create note
+    note = Note(title=title, content=content, tags=tag_list)
 
     # Save and get path
     storage = Storage(config)
@@ -1486,6 +1525,205 @@ def enhance(note_id, instructions, quick):
         index.close()
 
 
+@main.group()
+def template():
+    """Manage note templates."""
+    pass
+
+
+@template.command("list")
+def template_list():
+    """List all available templates."""
+    config = Config()
+    templates_dir = config.config_dir / "templates"
+    template_mgr = TemplateManager(templates_dir)
+
+    templates = template_mgr.list_templates()
+
+    if not templates["builtin"] and not templates["custom"]:
+        console.print("[yellow]No templates found[/yellow]")
+        return
+
+    # Display built-in templates
+    if templates["builtin"]:
+        console.print("\n[bold cyan]Built-in Templates:[/bold cyan]")
+        for name in templates["builtin"]:
+            console.print(f"  • {name}")
+
+    # Display custom templates
+    if templates["custom"]:
+        console.print("\n[bold cyan]Custom Templates:[/bold cyan]")
+        for name in templates["custom"]:
+            console.print(f"  • {name}")
+
+    console.print(
+        "\n[dim]Use 'notes new \"Title\" --template <name>' to create a note from a template[/dim]"
+    )
+
+
+@template.command("show")
+@click.argument("name")
+def template_show(name):
+    """Show template content."""
+    config = Config()
+    templates_dir = config.config_dir / "templates"
+    template_mgr = TemplateManager(templates_dir)
+
+    content = template_mgr.get_template(name)
+    if not content:
+        console.print(f"[red]Error: Template '{name}' not found[/red]")
+        return
+
+    # Extract variables
+    variables = TemplateEngine.extract_variables(content)
+
+    console.print(f"\n[bold cyan]Template: {name}[/bold cyan]")
+    if variables:
+        console.print(f"[dim]Variables: {', '.join(variables)}[/dim]\n")
+    else:
+        console.print("[dim]No custom variables[/dim]\n")
+
+    console.print(content)
+
+
+@template.command("create")
+@click.argument("name")
+@click.option("--from-note", help="Create template from existing note ID")
+def template_create(name, from_note):
+    """Create a new custom template."""
+    config = Config()
+    templates_dir = config.config_dir / "templates"
+    template_mgr = TemplateManager(templates_dir)
+
+    # Check if template already exists
+    if template_mgr.template_exists(name):
+        console.print(f"[red]Error: Template '{name}' already exists[/red]")
+        console.print("[yellow]Use 'notes template edit' to modify existing templates[/yellow]")
+        return
+
+    if from_note:
+        # Create template from existing note
+        storage = Storage(config)
+        try:
+            file_path = storage.find_by_id(from_note)
+            note = storage.load_note(file_path)
+
+            # Convert note to template format
+            content = f"""---
+title: "{{{{title}}}}"
+tags: {note.tags}
+---
+
+{note.content}
+"""
+            template_mgr.save_template(name, content)
+            console.print(f"[green]✓[/green] Template '{name}' created from note {from_note}")
+
+        except FileNotFoundError:
+            console.print(f"[red]Error: Note with ID '{from_note}' not found[/red]")
+            return
+    else:
+        # Create template interactively
+        console.print(f"[cyan]Creating template '{name}'[/cyan]")
+        console.print("[dim]Enter template content (Ctrl+D or Ctrl+Z when done):[/dim]\n")
+
+        try:
+            import sys
+
+            lines = []
+            while True:
+                try:
+                    line = input()
+                    lines.append(line)
+                except EOFError:
+                    break
+
+            content = "\n".join(lines)
+
+            if not content.strip():
+                console.print("[yellow]Template content cannot be empty[/yellow]")
+                return
+
+            template_mgr.save_template(name, content)
+            console.print(f"\n[green]✓[/green] Template '{name}' created")
+
+            # Show variables found
+            variables = TemplateEngine.extract_variables(content)
+            if variables:
+                console.print(f"[blue]Variables found:[/blue] {', '.join(variables)}")
+
+        except KeyboardInterrupt:
+            console.print("\n[yellow]Template creation cancelled[/yellow]")
+
+
+@template.command("edit")
+@click.argument("name")
+def template_edit(name):
+    """Edit a template."""
+    config = Config()
+    templates_dir = config.config_dir / "templates"
+    template_mgr = TemplateManager(templates_dir)
+
+    template_path = template_mgr.get_template_path(name)
+    if not template_path:
+        console.print(f"[red]Error: Template '{name}' not found[/red]")
+        return
+
+    # Check if it's a built-in template
+    if template_path.parent.name == "builtin":
+        console.print(f"[yellow]Cannot edit built-in template '{name}'[/yellow]")
+        console.print(
+            f"[dim]Tip: Create a custom version with 'notes template create {name} --from-note <id>'[/dim]"
+        )
+        return
+
+    # Open in editor
+    import subprocess
+
+    editor = config.get("editor", "nano")
+    try:
+        subprocess.run([editor, str(template_path)], check=True)
+        console.print(f"[green]✓[/green] Template '{name}' updated")
+    except subprocess.CalledProcessError:
+        console.print(f"[red]Error editing template[/red]")
+    except FileNotFoundError:
+        console.print(f"[red]Editor '{editor}' not found[/red]")
+
+
+@template.command("delete")
+@click.argument("name")
+@click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
+def template_delete(name, yes):
+    """Delete a custom template."""
+    config = Config()
+    templates_dir = config.config_dir / "templates"
+    template_mgr = TemplateManager(templates_dir)
+
+    try:
+        # Confirm deletion
+        if not yes:
+            confirm = prompt(f"Delete template '{name}'? Type 'yes' to confirm: ")
+            if confirm.lower() != "yes":
+                console.print("[yellow]Deletion cancelled[/yellow]")
+                return
+
+        if template_mgr.delete_template(name):
+            console.print(f"[green]✓[/green] Template '{name}' deleted")
+        else:
+            console.print(f"[red]Error: Template '{name}' not found[/red]")
+
+    except ValueError as e:
+        console.print(f"[red]Error:[/red] {e}")
+
+
+# Alias for template list
+@main.command("templates")
+def templates_alias():
+    """List all available templates (alias for 'template list')."""
+    ctx = click.Context(template_list)
+    ctx.invoke(template_list)
+
+
 class NotesCompleter(Completer):
     """Custom completer that provides note titles after certain commands."""
 
@@ -1498,6 +1736,7 @@ class NotesCompleter(Completer):
         "import",
         "enhance",
         "tags",
+        "templates",
         "export",
         "sync",
         "config",
@@ -1586,6 +1825,7 @@ def interactive_mode():
             "  [green]import <file>[/green] - Import a file as note\n"
             "  [green]enhance <ID>[/green] - Enhance note with AI\n"
             "  [green]tags[/green] - Show all tags\n"
+            "  [green]templates[/green] - List note templates\n"
             "  [green]export <ID>[/green] - Export a note\n"
             "  [green]sync[/green] - Sync with Git\n"
             "  [green]config[/green] - Configuration\n"
@@ -1630,6 +1870,7 @@ def interactive_mode():
                         "  [green]import <file>[/green] - Import file (.md, .txt, .rtf, .pdf, .docx)\n"
                         "  [green]enhance <ID>[/green] - Enhance note with AI\n"
                         "  [green]tags[/green] - Show all tags\n"
+                        "  [green]templates[/green] - List available templates\n"
                         "  [green]export <ID>[/green] - Export a note by ID\n"
                         "  [green]sync[/green] - Sync with Git\n"
                         "  [green]config[/green] - Configuration\n"
@@ -1667,6 +1908,9 @@ def interactive_mode():
             elif command == "tags":
                 ctx = click.Context(tags)
                 ctx.invoke(tags)
+            elif command == "templates":
+                ctx = click.Context(templates_alias)
+                ctx.invoke(templates_alias)
             elif command == "enhance" and args:
                 ctx = click.Context(enhance)
                 ctx.invoke(enhance, note_id=args, instructions=None, quick=False)
