@@ -79,5 +79,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sync requires Git remote to be configured manually
 - Initial sync from existing remote requires `--allow-unrelated-histories` (handled automatically)
 
-[0.1.1]: https://github.com/oscarvalenzuelab/gpgnotes/releases/tag/v0.1.1
-[0.1.0]: https://github.com/oscarvalenzuelab/gpgnotes/releases/tag/v0.1.0
+[0.1.1]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.1.1
+[0.1.0]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.1.0

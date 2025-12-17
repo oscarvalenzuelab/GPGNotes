@@ -48,9 +48,9 @@ dev = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/oscarvalenzuelab/gpgnotes"
-"Repository" = "https://github.com/oscarvalenzuelab/gpgnotes"
-"Bug Tracker" = "https://github.com/oscarvalenzuelab/gpgnotes/issues"
+"Homepage" = "https://github.com/oscarvalenzuelab/GPGNotes"
+"Repository" = "https://github.com/oscarvalenzuelab/GPGNotes"
+"Bug Tracker" = "https://github.com/oscarvalenzuelab/GPGNotes/issues"
 
 [project.scripts]
 notes = "gpgnotes.cli:main"
