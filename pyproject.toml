@@ -51,6 +51,11 @@ llm = [
     "anthropic>=0.18.0",
     "ollama>=0.1.0",
 ]
+import = [
+    "python-docx>=1.0.0",
+    "pypdf>=4.0.0",
+    "striprtf>=0.0.26",
+]
 
 [project.urls]
 "Homepage" = "https://github.com/oscarvalenzuelab/GPGNotes"
