@@ -811,8 +811,8 @@ Secrets file: {cfg._get_secrets_path()}
 
         if llm_provider.lower() != "ollama":
             console.print(
-                f"[yellow]Remember to set API key with:[/yellow] "
-                f"notes config --llm-key YOUR_API_KEY"
+                "[yellow]Remember to set API key with:[/yellow] "
+                "notes config --llm-key YOUR_API_KEY"
             )
 
     if llm_model:
@@ -1096,7 +1096,6 @@ def interactive_mode():
         )
     )
 
-    app_config = Config()
     commands = WordCompleter(
         ["new", "list", "open", "delete", "tags", "export", "sync", "config", "help", "exit"]
     )

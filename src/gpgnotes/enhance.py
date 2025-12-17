@@ -4,7 +4,7 @@ import difflib
 from typing import Optional
 
 from prompt_toolkit import prompt
-from prompt_toolkit.validation import Validator, ValidationError
+from prompt_toolkit.validation import ValidationError, Validator
 from rich.console import Console
 from rich.panel import Panel
 from rich.syntax import Syntax
@@ -283,8 +283,6 @@ def quick_enhance(note: Note, config: Config, instructions: str) -> Note:
     Returns:
         Enhanced note (original note is modified in-place)
     """
-    session = EnhancementSession(note, config)
-
     # Get provider
     provider_name = config.get("llm_provider")
     if not provider_name:

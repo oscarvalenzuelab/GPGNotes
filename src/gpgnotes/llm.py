@@ -1,5 +1,6 @@
 """LLM provider abstraction for note enhancement."""
 
+import importlib.util
 from abc import ABC, abstractmethod
 from typing import Optional
 
@@ -76,12 +77,7 @@ Provide ONLY the enhanced text without explanations or meta-commentary."""
 
     def is_available(self) -> bool:
         """Check if OpenAI is available."""
-        try:
-            import openai
-
-            return bool(self.api_key)
-        except ImportError:
-            return False
+        return importlib.util.find_spec("openai") is not None and bool(self.api_key)
 
 
 class ClaudeProvider(LLMProvider):
@@ -134,12 +130,7 @@ Provide ONLY the enhanced text without explanations or meta-commentary."""
 
     def is_available(self) -> bool:
         """Check if Claude is available."""
-        try:
-            import anthropic
-
-            return bool(self.api_key)
-        except ImportError:
-            return False
+        return importlib.util.find_spec("anthropic") is not None and bool(self.api_key)
 
 
 class OllamaProvider(LLMProvider):
