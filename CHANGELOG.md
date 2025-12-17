@@ -5,6 +5,16 @@ All notable changes to GPGNotes will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.6] - 2025-12-16
+
+### Fixed
+
+- **Menu Display in Enhancement UI**: Fixed interactive menus not displaying option keys ([a], [r], etc.) when using prompt_toolkit. Replaced Rich console.print with plain print() for reliable rendering across terminals.
+
+### Added
+
+- **Interactive Mode Support for Enhance**: Added `enhance <ID>` command to interactive mode with tab completion and help documentation.
+
 ## [0.1.5] - 2025-12-16
 
 ### Fixed
@@ -158,6 +168,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sync requires Git remote to be configured manually
 - Initial sync from existing remote requires `--allow-unrelated-histories` (handled automatically)
 
+[0.1.6]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.1.6
 [0.1.5]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.1.5
 [0.1.4]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.1.4
 [0.1.3]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.1.3
