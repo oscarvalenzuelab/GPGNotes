@@ -7,8 +7,9 @@ from pathlib import Path
 from typing import Optional
 
 import click
-from prompt_toolkit import prompt
+from prompt_toolkit import PromptSession, prompt
 from prompt_toolkit.completion import WordCompleter
+from prompt_toolkit.history import FileHistory
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -1089,7 +1090,13 @@ def enhance(note_id, instructions, quick):
 
 
 def interactive_mode():
-    """Interactive mode with fuzzy search."""
+    """Interactive mode with fuzzy search and command history."""
+    cfg = Config()
+
+    # Set up command history
+    history_file = cfg.config_dir / "command_history"
+    history = FileHistory(str(history_file))
+
     console.print(
         Panel.fit(
             "[cyan]GPGNotes[/cyan] - Interactive Mode\n\n"
@@ -1103,8 +1110,10 @@ def interactive_mode():
             "  [green]export <ID>[/green] - Export a note\n"
             "  [green]sync[/green] - Sync with Git\n"
             "  [green]config[/green] - Configuration\n"
+            "  [green]history[/green] - Show command history\n"
             "  [green]help or ?[/green] - Show help\n"
-            "  [green]exit[/green] - Exit",
+            "  [green]exit[/green] - Exit\n\n"
+            "[dim]Tip: Use Up/Down arrows to navigate command history[/dim]",
             title="Welcome",
         )
     )
@@ -1120,14 +1129,18 @@ def interactive_mode():
             "export",
             "sync",
             "config",
+            "history",
             "help",
             "exit",
         ]
     )
 
+    # Create a session with history support
+    session = PromptSession(history=history, completer=commands)
+
     while True:
         try:
-            user_input = prompt("notes> ", completer=commands).strip()
+            user_input = session.prompt("notes> ").strip()
 
             if not user_input:
                 continue
@@ -1153,9 +1166,11 @@ def interactive_mode():
                         "  [green]export <ID>[/green] - Export a note by ID\n"
                         "  [green]sync[/green] - Sync with Git\n"
                         "  [green]config[/green] - Configuration\n"
+                        "  [green]history [N][/green] - Show last N commands (default: 20)\n"
                         "  [green]help or ?[/green] - Show this help\n"
                         "  [green]exit[/green] - Exit\n\n"
-                        "[dim]Type text to search for notes and get their IDs[/dim]",
+                        "[dim]Type text to search for notes and get their IDs[/dim]\n"
+                        "[dim]Use Up/Down arrows to navigate command history[/dim]",
                         title="GPGNotes Help",
                     )
                 )
@@ -1197,6 +1212,24 @@ def interactive_mode():
                     llm_key=None,
                     show=True,
                 )
+            elif command == "history":
+                # Show command history
+                try:
+                    limit = int(args) if args else 20
+                except ValueError:
+                    limit = 20
+
+                # Read history from file
+                history_entries = list(history.load_history_strings())
+                if not history_entries:
+                    console.print("[yellow]No command history yet[/yellow]")
+                else:
+                    # Show most recent commands (history is stored newest first)
+                    recent = history_entries[:limit]
+                    console.print(f"\n[cyan]Last {len(recent)} commands:[/cyan]\n")
+                    for i, cmd in enumerate(reversed(recent), 1):
+                        console.print(f"  {i:3}  {cmd}")
+                    console.print()
             elif command in ["open", "delete", "enhance", "export"] and not args:
                 console.print(f"[yellow]Usage: {command} <ID>[/yellow]")
                 console.print("[dim]Tip: Use search to find note IDs[/dim]")
