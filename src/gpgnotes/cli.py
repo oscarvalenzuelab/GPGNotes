@@ -209,7 +209,7 @@ def _background_sync():
 
 @click.group(invoke_without_command=True)
 @click.pass_context
-@click.version_option(version="0.2.4")
+@click.version_option(version="0.2.5")
 def main(ctx):
     """GPGNotes - Encrypted note-taking with Git sync."""
     # Register exit handler for background sync
@@ -1801,15 +1801,13 @@ def templates_alias():
 
 
 @main.group(invoke_without_command=True)
-@click.argument("entry", required=False)
-@click.option("--time", "-t", is_flag=True, help="Add timestamp prefix to entry")
 @click.pass_context
-def daily(ctx, entry, time):
-    """Quick daily log entry or manage daily notes.
+def daily(ctx):
+    """Manage daily notes (Captain's Log).
 
     Examples:
-        notes daily "Fixed the auth bug"           # Quick entry
-        notes daily "Started deployment" --time    # Entry with timestamp
+        notes daily add "Fixed the auth bug"       # Add entry
+        notes daily add "Started deployment" -t    # Entry with timestamp
         notes daily show                           # View today's entries
         notes daily summary --month                # Monthly summary
     """
@@ -1820,20 +1818,12 @@ def daily(ctx, entry, time):
         console.print("[red]Error: GPG key not configured. Run 'notes init' first.[/red]")
         sys.exit(1)
 
-    if entry:
-        # Quick append mode - add entry to today's log
-        manager = DailyNoteManager(config)
-        note = manager.get_or_create_daily_note(datetime.now())
-        manager.append_entry(note, entry, with_time=time)
+    # Store config in context for subcommands
+    ctx.ensure_object(dict)
+    ctx.obj["config"] = config
 
-        console.print(f"[green]✓[/green] Added to {note.title}")
-
-        # Sync if enabled
-        if config.get("auto_sync"):
-            _sync_in_background(config, f"Daily entry: {entry[:30]}...")
-
-    elif ctx.invoked_subcommand is None:
-        # No entry and no subcommand - show today's entries
+    if ctx.invoked_subcommand is None:
+        # No subcommand - show today's entries
         manager = DailyNoteManager(config)
         note = manager.get_daily_note(datetime.now())
 
@@ -1842,15 +1832,39 @@ def daily(ctx, entry, time):
             console.print(f"\n[dim]Entries: {manager.count_entries(note)}[/dim]")
         else:
             console.print("[yellow]No entries for today yet.[/yellow]")
-            console.print("[dim]Use 'notes daily \"your entry\"' to add one.[/dim]")
+            console.print("[dim]Use 'notes daily add \"your entry\"' to add one.[/dim]")
+
+
+@daily.command("add")
+@click.argument("entry")
+@click.option("--time", "-t", is_flag=True, help="Add timestamp prefix to entry")
+@click.pass_context
+def daily_add(ctx, entry, time):
+    """Add an entry to today's daily note.
+
+    Examples:
+        notes daily add "Fixed the auth bug"
+        notes daily add "Started deployment" --time
+    """
+    config = ctx.obj["config"]
+    manager = DailyNoteManager(config)
+    note = manager.get_or_create_daily_note(datetime.now())
+    manager.append_entry(note, entry, with_time=time)
+
+    console.print(f"[green]✓[/green] Added to {note.title}")
+
+    # Sync if enabled
+    if config.get("auto_sync"):
+        _sync_in_background(config, f"Daily entry: {entry[:30]}...")
 
 
 @daily.command("show")
 @click.option("--date", "-d", help="Date to show (YYYY-MM-DD), defaults to today")
 @click.option("--week", "-w", is_flag=True, help="Show this week's entries")
-def daily_show(date, week):
+@click.pass_context
+def daily_show(ctx, date, week):
     """View daily note entries."""
-    config = Config()
+    config = ctx.obj["config"]
     manager = DailyNoteManager(config)
 
     if week:
@@ -1890,7 +1904,8 @@ def daily_show(date, week):
 @click.option("--year", type=int, help="Year for summary (default: current)")
 @click.option("--month-num", type=int, help="Month number 1-12 (default: current)")
 @click.option("--save", "-s", is_flag=True, help="Save summary as a new note")
-def daily_summary(month, week, year, month_num, save):
+@click.pass_context
+def daily_summary(ctx, month, week, year, month_num, save):
     """Generate summary from daily notes.
 
     Examples:
@@ -1898,7 +1913,7 @@ def daily_summary(month, week, year, month_num, save):
         notes daily summary --week               # Current week summary
         notes daily summary --month --year 2025 --month-num 11  # Nov 2025
     """
-    config = Config()
+    config = ctx.obj["config"]
     manager = DailyNoteManager(config)
 
     now = datetime.now()
@@ -2527,7 +2542,7 @@ def interactive_mode():
                 console.print(
                     Panel.fit(
                         "[cyan]Available Commands:[/cyan]\n\n"
-                        "  [green]new[/green] - Create new note\n"
+                        '  [green]new "Title"[/green] - Create new note\n'
                         "  [green]list[/green] - List all notes (--preview, --sort, --tag)\n"
                         "  [green]recent[/green] - Show recent notes\n"
                         "  [green]open <ID|title>[/green] - Open a note by ID or title\n"
@@ -2536,10 +2551,12 @@ def interactive_mode():
                         "  [green]clip <URL>[/green] - Clip web page as note\n"
                         "  [green]enhance <ID>[/green] - Enhance note with AI\n"
                         '  [green]daily "entry"[/green] - Quick daily log entry\n'
+                        "  [green]daily[/green] - Show today's daily entries\n"
                         "  [green]today[/green] - Open today's daily note\n"
                         "  [green]yesterday[/green] - Open yesterday's note\n"
                         "  [green]tags[/green] - Show all tags\n"
                         "  [green]templates[/green] - List available templates\n"
+                        "  [green]templates <name>[/green] - Show template content\n"
                         "  [green]export <ID>[/green] - Export a note by ID\n"
                         "  [green]sync[/green] - Sync with Git\n"
                         "  [green]config[/green] - Configuration\n"
@@ -2553,7 +2570,16 @@ def interactive_mode():
                 )
             elif command == "new":
                 ctx = click.Context(new)
-                ctx.invoke(new)
+                # Parse quoted title if provided
+                title = None
+                if args:
+                    # Simple parsing: treat first quoted string as title
+                    import re
+
+                    match = re.match(r'^"([^"]+)"', args)
+                    if match:
+                        title = match.group(1)
+                ctx.invoke(new, title=title, tags=None, template=None, var=())
             elif command == "list":
                 ctx = click.Context(list)
                 ctx.invoke(
@@ -2597,8 +2623,14 @@ def interactive_mode():
                 ctx = click.Context(tags)
                 ctx.invoke(tags)
             elif command == "templates":
-                ctx = click.Context(templates_alias)
-                ctx.invoke(templates_alias)
+                if args:
+                    # Show specific template
+                    ctx = click.Context(template_show)
+                    ctx.invoke(template_show, name=args)
+                else:
+                    # List all templates
+                    ctx = click.Context(templates_alias)
+                    ctx.invoke(templates_alias)
             elif command == "enhance" and args:
                 ctx = click.Context(enhance)
                 ctx.invoke(enhance, note_id=args, instructions=None, quick=False)
@@ -2652,13 +2684,14 @@ def interactive_mode():
                 console.print("[dim]Example: clip https://example.com/article[/dim]")
             elif command == "daily":
                 if args:
-                    # Quick entry mode
-                    ctx = click.Context(daily)
-                    ctx.invoke(daily, entry=args, time=False)
+                    # Quick entry mode - use add subcommand
+                    ctx = click.Context(daily_add)
+                    ctx.obj = {"config": Config()}
+                    ctx.invoke(daily_add, entry=args, time=False)
                 else:
                     # Show today's entries
                     ctx = click.Context(daily)
-                    ctx.invoke(daily, entry=None, time=False)
+                    ctx.invoke(daily)
             elif command == "today":
                 ctx = click.Context(today_cmd)
                 ctx.invoke(today_cmd)
