@@ -24,6 +24,67 @@ from .tagging import AutoTagger
 console = Console()
 
 
+def _paginate_results(items, page_size=20):
+    """Interactive pagination for result lists.
+
+    Yields pages of items and handles user navigation.
+    Returns the action chosen by user: 'next', 'prev', 'quit', or page number.
+    """
+    total_items = len(items)
+    total_pages = (total_items + page_size - 1) // page_size
+    current_page = 1
+
+    while True:
+        # Calculate slice for current page
+        start_idx = (current_page - 1) * page_size
+        end_idx = min(start_idx + page_size, total_items)
+        page_items = items[start_idx:end_idx]
+
+        # Yield the current page
+        yield {
+            'items': page_items,
+            'page': current_page,
+            'total_pages': total_pages,
+            'total_items': total_items,
+            'start_idx': start_idx,
+            'end_idx': end_idx
+        }
+
+        # Check if we need pagination controls
+        if total_pages <= 1:
+            break
+
+        # Show pagination controls
+        console.print(f"\n[dim]Page {current_page} of {total_pages} ({start_idx + 1}-{end_idx} of {total_items} items)[/dim]")
+        console.print("[dim]Commands: [n]ext, [p]rev, [number] to jump to page, [q]uit pagination[/dim]")
+
+        try:
+            choice = prompt("\nAction: ").strip().lower()
+
+            if choice in ['q', 'quit', '']:
+                break
+            elif choice in ['n', 'next']:
+                if current_page < total_pages:
+                    current_page += 1
+                else:
+                    console.print("[yellow]Already on last page[/yellow]")
+            elif choice in ['p', 'prev', 'previous']:
+                if current_page > 1:
+                    current_page -= 1
+                else:
+                    console.print("[yellow]Already on first page[/yellow]")
+            elif choice.isdigit():
+                page_num = int(choice)
+                if 1 <= page_num <= total_pages:
+                    current_page = page_num
+                else:
+                    console.print(f"[yellow]Invalid page number. Enter 1-{total_pages}[/yellow]")
+            else:
+                console.print("[yellow]Invalid command. Use n, p, number, or q[/yellow]")
+        except (KeyboardInterrupt, EOFError):
+            break
+
+
 def _sync_in_background(config: Config, message: str):
     """Run git sync in background thread."""
 
@@ -407,8 +468,10 @@ def new(title, tags):
 @main.command()
 @click.argument("query", required=False)
 @click.option("--tag", "-t", help="Search by tag")
-def search(query, tag):
-    """Search notes."""
+@click.option("--page-size", "-n", default=20, help="Items per page (default: 20)")
+@click.option("--no-pagination", is_flag=True, help="Disable pagination, show all results")
+def search(query, tag, page_size, no_pagination):
+    """Search notes with pagination."""
     config = Config()
     index = SearchIndex(config)
 
@@ -430,19 +493,30 @@ def search(query, tag):
             index.close()
             return
 
-        # Load and display notes
+        # Load notes
         storage = Storage(config)
-        table = Table(title="Search Results")
-        table.add_column("ID", style="cyan", width=14)
-        table.add_column("Title", style="green", width=25)
-        table.add_column("Preview", style="white", width=35)
-        table.add_column("Tags", style="blue", width=15)
-        table.add_column("Modified", style="yellow", width=16)
-
-        for file_path in results[:20]:
+        notes_data = []
+        for file_path in results:
             try:
                 note = storage.load_note(Path(file_path))
+                notes_data.append(note)
+            except Exception:
+                continue
 
+        if not notes_data:
+            console.print("[yellow]No notes found[/yellow]")
+            return
+
+        def build_search_table(notes_page, table_title):
+            """Build a table for a page of search results."""
+            table = Table(title=table_title)
+            table.add_column("ID", style="cyan", width=14)
+            table.add_column("Title", style="green", width=25)
+            table.add_column("Preview", style="white", width=35)
+            table.add_column("Tags", style="blue", width=15)
+            table.add_column("Modified", style="yellow", width=16)
+
+            for note in notes_page:
                 # Create content preview (first 80 chars)
                 preview = note.content.replace("\n", " ").strip()
                 if len(preview) > 80:
@@ -455,13 +529,33 @@ def search(query, tag):
                     ", ".join(note.tags[:2]) + ("..." if len(note.tags) > 2 else ""),
                     note.modified.strftime("%Y-%m-%d %H:%M"),
                 )
-            except Exception:
-                continue
 
-        console.print(table)
+            return table
 
-        if len(results) > 20:
-            console.print(f"\n[dim]Showing 20 of {len(results)} results[/dim]")
+        # Build title
+        if query:
+            table_title = f"Search: '{query}'"
+        elif tag:
+            table_title = f"Tagged: '{tag}'"
+        else:
+            table_title = "All Notes"
+
+        # Use pagination or show all
+        if no_pagination or len(notes_data) <= page_size:
+            # Show all results
+            table = build_search_table(notes_data, table_title)
+            console.print(table)
+        else:
+            # Use pagination
+            paginator = _paginate_results(notes_data, page_size)
+            for page_info in paginator:
+                # Clear screen for better UX
+                console.clear()
+
+                # Build and display table for current page
+                page_title = f"{table_title} (Page {page_info['page']}/{page_info['total_pages']})"
+                table = build_search_table(page_info['items'], page_title)
+                console.print(table)
 
         console.print("\n[dim]Tip: Use 'notes open <ID>' to open a note[/dim]")
 
@@ -623,17 +717,19 @@ def _find_note_by_title(storage: Storage, query: str) -> Optional[Path]:
     default="modified",
     help="Sort order (default: modified)",
 )
-@click.option("--limit", "-n", default=50, help="Maximum notes to show (default: 50)")
+@click.option("--page-size", "-n", default=20, help="Items per page (default: 20)")
 @click.option("--tag", "-t", help="Filter by tag")
-def list(preview, sort, limit, tag):
+@click.option("--no-pagination", is_flag=True, help="Disable pagination, show all results")
+def list(preview, sort, page_size, tag, no_pagination):
     """List all notes with optional filtering and sorting.
 
     Examples:
-        notes list                    # Default: sorted by modified
+        notes list                    # Default: sorted by modified, paginated
         notes list --preview          # Show content preview
         notes list --sort title       # Sort alphabetically
         notes list --tag work         # Filter by tag
-        notes list -n 10              # Show only 10 notes
+        notes list -n 10              # Show 10 items per page
+        notes list --no-pagination    # Show all results at once
     """
     config = Config()
     storage = Storage(config)
@@ -672,57 +768,69 @@ def list(preview, sort, limit, tag):
         elif sort == "title":
             notes_data.sort(key=lambda n: n.title.lower())
 
-        # Apply limit
-        total_count = len(notes_data)
-        notes_data = notes_data[:limit]
-
-        # Build table
-        title = "All Notes"
-        if tag:
-            title = f"Notes tagged '{tag}'"
-
-        table = Table(title=title)
-        table.add_column("ID", style="cyan", width=14, no_wrap=True)
-        title_width = 30 if preview else 45
-        tags_width = 18 if preview else 25
-        table.add_column("Title", style="green", width=title_width, no_wrap=True)
-        table.add_column("Tags", style="blue", width=tags_width, no_wrap=True)
-        table.add_column("Modified", style="yellow", width=16, no_wrap=True)
-        if preview:
-            table.add_column("Preview", style="dim", width=35, no_wrap=True)
-
-        for note in notes_data:
-            # Truncate title and tags to fit columns
-            title_text = note.title
-            if len(title_text) > title_width - 3:
-                title_text = title_text[: title_width - 3] + "..."
-
-            tags_text = ", ".join(note.tags[:3])
-            if len(tags_text) > tags_width - 3:
-                tags_text = tags_text[: tags_width - 3] + "..."
-
-            row = [
-                note.note_id,
-                title_text,
-                tags_text,
-                note.modified.strftime("%Y-%m-%d %H:%M"),
-            ]
+        def build_table(notes_page, table_title):
+            """Build a table for a page of notes."""
+            table = Table(title=table_title)
+            table.add_column("ID", style="cyan", width=14, no_wrap=True)
+            title_width = 30 if preview else 45
+            tags_width = 18 if preview else 25
+            table.add_column("Title", style="green", width=title_width, no_wrap=True)
+            table.add_column("Tags", style="blue", width=tags_width, no_wrap=True)
+            table.add_column("Modified", style="yellow", width=16, no_wrap=True)
             if preview:
-                # Get first non-empty line of content
-                first_line = ""
-                for line in note.content.split("\n"):
-                    line = line.strip()
-                    if line and not line.startswith("#"):
-                        first_line = line[:32] + "..." if len(line) > 32 else line
-                        break
-                row.append(first_line)
+                table.add_column("Preview", style="dim", width=35, no_wrap=True)
 
-            table.add_row(*row)
+            for note in notes_page:
+                # Truncate title and tags to fit columns
+                title_text = note.title
+                if len(title_text) > title_width - 3:
+                    title_text = title_text[: title_width - 3] + "..."
 
-        console.print(table)
+                tags_text = ", ".join(note.tags[:3])
+                if len(tags_text) > tags_width - 3:
+                    tags_text = tags_text[: tags_width - 3] + "..."
 
-        if total_count > limit:
-            console.print(f"\n[dim]Showing {limit} of {total_count} notes[/dim]")
+                row = [
+                    note.note_id,
+                    title_text,
+                    tags_text,
+                    note.modified.strftime("%Y-%m-%d %H:%M"),
+                ]
+                if preview:
+                    # Get first non-empty line of content
+                    first_line = ""
+                    for line in note.content.split("\n"):
+                        line = line.strip()
+                        if line and not line.startswith("#"):
+                            first_line = line[:32] + "..." if len(line) > 32 else line
+                            break
+                    row.append(first_line)
+
+                table.add_row(*row)
+
+            return table
+
+        # Build title
+        table_title = "All Notes"
+        if tag:
+            table_title = f"Notes tagged '{tag}'"
+
+        # Use pagination or show all
+        if no_pagination or len(notes_data) <= page_size:
+            # Show all results
+            table = build_table(notes_data, table_title)
+            console.print(table)
+        else:
+            # Use pagination
+            paginator = _paginate_results(notes_data, page_size)
+            for page_info in paginator:
+                # Clear screen for better UX (optional)
+                console.clear()
+
+                # Build and display table for current page
+                page_title = f"{table_title} (Page {page_info['page']}/{page_info['total_pages']})"
+                table = build_table(page_info['items'], page_title)
+                console.print(table)
 
         console.print("\n[dim]Tip: Use 'notes open <ID>' or 'notes open <title>' to open[/dim]")
 
@@ -741,7 +849,7 @@ def recent(limit):
     """
     # Delegate to list command with defaults
     ctx = click.Context(list)
-    ctx.invoke(list, preview=False, sort="modified", limit=limit, tag=None)
+    ctx.invoke(list, preview=False, sort="modified", page_size=limit, tag=None, no_pagination=True)
 
 
 @main.command()
@@ -1538,10 +1646,10 @@ def interactive_mode():
                 ctx.invoke(new)
             elif command == "list":
                 ctx = click.Context(list)
-                ctx.invoke(list, preview=False, sort="modified", limit=50, tag=None)
+                ctx.invoke(list, preview=False, sort="modified", page_size=20, tag=None, no_pagination=False)
             elif command == "recent":
                 ctx = click.Context(list)
-                ctx.invoke(list, preview=False, sort="modified", limit=5, tag=None)
+                ctx.invoke(list, preview=False, sort="modified", page_size=5, tag=None, no_pagination=True)
             elif command == "open" and args:
                 ctx = click.Context(open)
                 ctx.invoke(open, note_id=args, last=False)
@@ -1609,7 +1717,7 @@ def interactive_mode():
             else:
                 # Treat as search query
                 ctx = click.Context(search)
-                ctx.invoke(search, query=user_input, tag=None)
+                ctx.invoke(search, query=user_input, tag=None, page_size=20, no_pagination=False)
 
         except KeyboardInterrupt:
             break
