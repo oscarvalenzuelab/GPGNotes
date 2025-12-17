@@ -45,6 +45,43 @@ notes import *.md
 | PDF | `.pdf` | Requires pypdf |
 | Word Document | `.docx` | Requires python-docx |
 
+## URL Import (Web Clipper)
+
+Import content directly from web pages as encrypted notes:
+
+```bash
+# Import from URL
+notes import https://example.com/article
+
+# Use the clip shortcut
+notes clip https://blog.example.com/post
+
+# Import with custom title
+notes import https://example.com --title "My Custom Title"
+```
+
+### Features
+
+- **HTML to Markdown conversion** - Automatically converts web content to markdown format
+- **Automatic title extraction** - Extracts title from the page's first heading
+- **Metadata preservation** - Adds source URL and clipped timestamp to note frontmatter
+- **No dependencies** - Uses built-in Python libraries (urllib, HTMLParser)
+
+### Example Output
+
+```markdown
+---
+source_url: https://example.com/article
+clipped_at: 2025-12-17 14:30:00
+---
+
+*Clipped from [https://example.com/article](https://example.com/article)*
+
+# Article Title
+
+Content converted to markdown...
+```
+
 ## Exporting Notes
 
 Export notes to various formats:
