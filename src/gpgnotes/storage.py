@@ -247,7 +247,7 @@ class Storage:
     def find_by_id(self, note_id: str) -> Path:
         """Find note file by ID (timestamp).
 
-        Plain exports have 'p' suffix (e.g., 20251217191420p vs 20251217191420).
+        Plain exports have 'p' prefix (e.g., p20251217191420 vs 20251217191420).
         """
         for file_path in self.list_notes(include_plain=True):
             if Note.extract_id_from_path(file_path) == note_id:

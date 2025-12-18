@@ -674,9 +674,9 @@ def open(note_id, last):
             file_path, _ = notes_with_dates[0]
 
         elif note_id:
-            # Check if it's a valid ID format (14 digits or 14 digits + 'p')
+            # Check if it's a valid ID format (14 digits or 'p' + 14 digits)
             is_encrypted_id = note_id.isdigit() and len(note_id) == 14
-            is_plain_id = len(note_id) == 15 and note_id[:-1].isdigit() and note_id.endswith("p")
+            is_plain_id = len(note_id) == 15 and note_id.startswith("p") and note_id[1:].isdigit()
 
             if is_encrypted_id or is_plain_id:
                 # Find note by ID
@@ -953,9 +953,9 @@ def delete(note_id, yes):
     index = SearchIndex(config)
 
     try:
-        # Validate ID format (14 digits or 14 digits + 'p')
+        # Validate ID format (14 digits or 'p' + 14 digits)
         is_encrypted_id = note_id.isdigit() and len(note_id) == 14
-        is_plain_id = len(note_id) == 15 and note_id[:-1].isdigit() and note_id.endswith("p")
+        is_plain_id = len(note_id) == 15 and note_id.startswith("p") and note_id[1:].isdigit()
 
         if not (is_encrypted_id or is_plain_id):
             console.print(f"[red]Error: Invalid note ID '{note_id}'[/red]")
@@ -1298,9 +1298,9 @@ def export(note_id, format, output, plain):
     storage = Storage(config)
 
     try:
-        # Validate ID format (14 digits or 14 digits + 'p')
+        # Validate ID format (14 digits or 'p' + 14 digits)
         is_encrypted_id = note_id.isdigit() and len(note_id) == 14
-        is_plain_id = len(note_id) == 15 and note_id[:-1].isdigit() and note_id.endswith("p")
+        is_plain_id = len(note_id) == 15 and note_id.startswith("p") and note_id[1:].isdigit()
 
         if not (is_encrypted_id or is_plain_id):
             console.print(f"[red]Error: Invalid note ID '{note_id}'[/red]")
@@ -1336,9 +1336,9 @@ def export(note_id, format, output, plain):
             # Use note's relative path (YYYY/MM/filename)
             rel_path = file_path.relative_to(config.notes_dir)
             # Change extension from .md.gpg to the export format
-            # Add "p" suffix to the filename to distinguish from encrypted version
+            # Add "p" prefix to the filename to distinguish from encrypted version
             base_name = rel_path.stem.replace(".md", "")  # Remove .md from .md.gpg
-            plain_file = plain_dir / rel_path.parent / f"{base_name}p{ext}"
+            plain_file = plain_dir / rel_path.parent / f"p{base_name}{ext}"
             plain_file.parent.mkdir(parents=True, exist_ok=True)
             output = str(plain_file)
 
@@ -1564,9 +1564,9 @@ def enhance(note_id, instructions, quick):
             )
             return
 
-        # Validate ID format (14 digits or 14 digits + 'p')
+        # Validate ID format (14 digits or 'p' + 14 digits)
         is_encrypted_id = note_id.isdigit() and len(note_id) == 14
-        is_plain_id = len(note_id) == 15 and note_id[:-1].isdigit() and note_id.endswith("p")
+        is_plain_id = len(note_id) == 15 and note_id.startswith("p") and note_id[1:].isdigit()
 
         if not (is_encrypted_id or is_plain_id):
             console.print(f"[red]Error: Invalid note ID '{note_id}'[/red]")
