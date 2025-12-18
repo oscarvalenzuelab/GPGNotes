@@ -5,6 +5,39 @@ All notable changes to GPGNotes will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2025-12-18
+
+### Added
+
+- **Inbox View**: New `--inbox` / `-i` flag for `notes list` to show notes without any folder assignment.
+  - `notes list --inbox` - List unfiled notes
+  - `inbox` command in interactive mode as shortcut
+  - Helps manage notes that haven't been organized yet
+
+- **Folder Column in List**: Notes list now displays folders in a separate column.
+  - Folders shown in magenta, separated from regular tags
+  - Cleaner view of note organization at a glance
+
+- **New Templates**:
+  - `1on1` - Template for 1:1 meetings with check-in, topics, action items, and follow-up sections
+  - `prompt` - Template for AI prompt/context engineering with system prompt, variables, examples, and iteration log
+
+- **Daily Command Improvements**: Reorganized daily note commands.
+  - `daily today` - Open today's daily note (alternative to `today`)
+  - `daily yesterday` - Open yesterday's daily note (alternative to `yesterday`)
+  - Old `today`/`yesterday` commands still work for backward compatibility
+
+### Fixed
+
+- **Delete Command Bug**: Fixed `'str' object has no attribute 'resolve'` error when deleting notes. The `remove_note()` method now receives a Path object instead of a string.
+
+- **Tags Command in Interactive Mode**: Fixed `AttributeError: 'NoneType' object has no attribute 'allow_extra_args'` when running `tags` command. Renamed internal function to `tags_cmd` to avoid variable shadowing.
+
+### Changed
+
+- **Interactive Mode Help**: Updated help text to show `daily today` and `daily yesterday` syntax, and added `inbox` command.
+- **Tab Completion**: Added missing commands (`inbox`, `folders`, `todos`, `move`) to interactive mode autocomplete.
+
 ## [0.3.0] - 2025-12-18
 
 ### Added
@@ -468,6 +501,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sync requires Git remote to be configured manually
 - Initial sync from existing remote requires `--allow-unrelated-histories` (handled automatically)
 
+[0.3.1]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.3.1
+[0.3.0]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.3.0
 [0.2.12]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.2.12
 [0.2.11]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.2.11
 [0.2.10]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.2.10
