@@ -808,9 +808,9 @@ def list_cmd(preview, sort, page_size, tag, no_pagination):
             """Build a table for a page of notes."""
             table = Table(title=table_title)
             table.add_column("ID", style="cyan", width=14, no_wrap=True)
-            table.add_column("Type", style="magenta", width=5, no_wrap=True)
-            title_width = 28 if preview else 40
-            tags_width = 18 if preview else 25
+            table.add_column("Type", width=8, no_wrap=True)
+            title_width = 25 if preview else 35
+            tags_width = 15 if preview else 20
             table.add_column("Title", style="green", width=title_width, no_wrap=True)
             table.add_column("Tags", style="blue", width=tags_width, no_wrap=True)
             table.add_column("Modified", style="yellow", width=16, no_wrap=True)
@@ -827,7 +827,7 @@ def list_cmd(preview, sort, page_size, tag, no_pagination):
 
                 # Determine type indicator
                 is_plain = note_meta.get("is_plain", False)
-                type_indicator = "📄" if is_plain else "🔒"
+                type_indicator = "P" if is_plain else "E"
 
                 # Truncate title and tags to fit columns
                 title_text = note_meta["title"]
