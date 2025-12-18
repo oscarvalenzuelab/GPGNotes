@@ -56,6 +56,9 @@ import = [
     "pypdf>=4.0.0",
     "striprtf>=0.0.26",
 ]
+tui = [
+    "textual>=0.89.0",
+]
 
 [project.urls]
 "Homepage" = "https://github.com/oscarvalenzuelab/GPGNotes"

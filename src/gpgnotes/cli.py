@@ -3386,5 +3386,34 @@ def interactive_mode():
     console.print("\n[cyan]Goodbye![/cyan]")
 
 
+@main.command()
+def tui():
+    """Launch the interactive TUI application.
+
+    Provides a full-screen text user interface for browsing,
+    creating, and editing notes with keyboard navigation.
+
+    Requires the 'tui' extra: pip install gpgnotes[tui]
+    """
+    try:
+        from .tui import GPGNotesApp
+    except ImportError:
+        console.print("[red]Error: TUI requires textual library.[/red]")
+        console.print("\n[yellow]Install with:[/yellow]")
+        console.print("  pip install gpgnotes[tui]")
+        console.print("\n[dim]Or: pip install textual[/dim]")
+        sys.exit(1)
+
+    config = Config()
+
+    # Check if GPG key is configured
+    if not config.get("gpg_key"):
+        console.print("[red]Error: GPG key not configured. Run 'notes init' first.[/red]")
+        sys.exit(1)
+
+    app = GPGNotesApp()
+    app.run()
+
+
 if __name__ == "__main__":
     main()
