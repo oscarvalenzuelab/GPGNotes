@@ -5,16 +5,26 @@ All notable changes to GPGNotes will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.12] - 2025-12-17
+
+*Same as 0.2.11 - version bump for PR*
+
 ## [0.2.11] - 2025-12-17
 
 ### Fixed
 
-- **Duplicate ID Conflict**: Plain exports now use a 'p' suffix in their IDs to avoid conflicts with encrypted notes (e.g., encrypted: `20251217191420`, plain: `20251217191420p`). This eliminates ambiguity when opening, deleting, or managing notes.
+- **Duplicate ID Conflict**: Plain exports now use a 'p' **prefix** in their IDs to avoid conflicts with encrypted notes (e.g., encrypted: `20251217191420`, plain: `p20251217191420`). This eliminates ambiguity when opening, deleting, or managing notes.
 - **Import Error**: Fixed `ModuleNotFoundError` for `git_sync` module in export command.
+- **ID Column Width**: Increased ID column width from 14 to 17 characters to display full plain IDs with 'p' prefix without truncation.
+- **Plain ID Validation**: Fixed `open`, `delete`, `export`, and `enhance` commands to recognize plain IDs with 'p' prefix (15 characters starting with 'p').
 
 ### Changed
 
-- **Plain Export Naming**: Plain exports created with `notes export --plain` now have a 'p' suffix in the filename (e.g., `20251217191420p.md` instead of `20251217191420.md`)
+- **Plain Export Naming**: Plain exports created with `notes export --plain` now have a 'p' **prefix** in the filename (e.g., `p20251217191420.md` instead of `20251217191420.md`)
+  - **Better UX**: Prefix makes plain files immediately visible and groups them together when sorted
+  - **All formats supported**: Applies to all export formats (md, rtf, pdf, docx, html, json, txt)
+- **List Table Layout**: Optimized column widths for 80-column terminals (ID: 17, Type: 3, Title: 29, Tags: 15, Modified: 11)
+- **Date Format**: Modified date displays as `YYYY-MM-DD` instead of `YYYY-MM-DD HH:MM` to save space
 
 ## [0.2.10] - 2025-12-17
 
@@ -408,6 +418,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sync requires Git remote to be configured manually
 - Initial sync from existing remote requires `--allow-unrelated-histories` (handled automatically)
 
+[0.2.12]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.2.12
 [0.2.11]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.2.11
 [0.2.10]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.2.10
 [0.2.8]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.2.8

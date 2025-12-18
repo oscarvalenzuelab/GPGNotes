@@ -674,8 +674,11 @@ def open(note_id, last):
             file_path, _ = notes_with_dates[0]
 
         elif note_id:
-            # Check if it's a valid ID format
-            if note_id.isdigit() and len(note_id) == 14:
+            # Check if it's a valid ID format (14 digits or 'p' + 14 digits)
+            is_encrypted_id = note_id.isdigit() and len(note_id) == 14
+            is_plain_id = len(note_id) == 15 and note_id.startswith("p") and note_id[1:].isdigit()
+
+            if is_encrypted_id or is_plain_id:
                 # Find note by ID
                 try:
                     file_path = storage.find_by_id(note_id)
@@ -807,13 +810,13 @@ def list_cmd(preview, sort, page_size, tag, no_pagination):
         def build_table(notes_page, table_title):
             """Build a table for a page of notes."""
             table = Table(title=table_title)
-            table.add_column("ID", style="cyan", width=14, no_wrap=True)
-            table.add_column("Type", width=8, no_wrap=True)
-            title_width = 25 if preview else 35
-            tags_width = 15 if preview else 20
+            table.add_column("ID", style="cyan", width=17, no_wrap=True)
+            table.add_column("T", width=3, no_wrap=True)  # Just P or E
+            title_width = 22 if preview else 29
+            tags_width = 12 if preview else 15
             table.add_column("Title", style="green", width=title_width, no_wrap=True)
             table.add_column("Tags", style="blue", width=tags_width, no_wrap=True)
-            table.add_column("Modified", style="yellow", width=16, no_wrap=True)
+            table.add_column("Modified", style="yellow", width=11, no_wrap=True)
             if preview:
                 table.add_column("Preview", style="dim", width=35, no_wrap=True)
 
@@ -843,7 +846,7 @@ def list_cmd(preview, sort, page_size, tag, no_pagination):
                     type_indicator,
                     title_text,
                     tags_text,
-                    modified_dt.strftime("%Y-%m-%d %H:%M"),
+                    modified_dt.strftime("%Y-%m-%d"),
                 ]
 
                 if preview:
@@ -950,8 +953,11 @@ def delete(note_id, yes):
     index = SearchIndex(config)
 
     try:
-        # Validate ID format
-        if not (note_id.isdigit() and len(note_id) == 14):
+        # Validate ID format (14 digits or 'p' + 14 digits)
+        is_encrypted_id = note_id.isdigit() and len(note_id) == 14
+        is_plain_id = len(note_id) == 15 and note_id.startswith("p") and note_id[1:].isdigit()
+
+        if not (is_encrypted_id or is_plain_id):
             console.print(f"[red]Error: Invalid note ID '{note_id}'[/red]")
             console.print("[yellow]Tip: Use 'notes search <query>' to find note IDs[/yellow]")
             return
@@ -1292,8 +1298,11 @@ def export(note_id, format, output, plain):
     storage = Storage(config)
 
     try:
-        # Validate ID format
-        if not (note_id.isdigit() and len(note_id) == 14):
+        # Validate ID format (14 digits or 'p' + 14 digits)
+        is_encrypted_id = note_id.isdigit() and len(note_id) == 14
+        is_plain_id = len(note_id) == 15 and note_id.startswith("p") and note_id[1:].isdigit()
+
+        if not (is_encrypted_id or is_plain_id):
             console.print(f"[red]Error: Invalid note ID '{note_id}'[/red]")
             console.print("[yellow]Tip: Use 'notes search <query>' to find note IDs[/yellow]")
             return
@@ -1327,9 +1336,9 @@ def export(note_id, format, output, plain):
             # Use note's relative path (YYYY/MM/filename)
             rel_path = file_path.relative_to(config.notes_dir)
             # Change extension from .md.gpg to the export format
-            # Add "p" suffix to the filename to distinguish from encrypted version
+            # Add "p" prefix to the filename to distinguish from encrypted version
             base_name = rel_path.stem.replace(".md", "")  # Remove .md from .md.gpg
-            plain_file = plain_dir / rel_path.parent / f"{base_name}p{ext}"
+            plain_file = plain_dir / rel_path.parent / f"p{base_name}{ext}"
             plain_file.parent.mkdir(parents=True, exist_ok=True)
             output = str(plain_file)
 
@@ -1555,8 +1564,11 @@ def enhance(note_id, instructions, quick):
             )
             return
 
-        # Validate ID format
-        if not (note_id.isdigit() and len(note_id) == 14):
+        # Validate ID format (14 digits or 'p' + 14 digits)
+        is_encrypted_id = note_id.isdigit() and len(note_id) == 14
+        is_plain_id = len(note_id) == 15 and note_id.startswith("p") and note_id[1:].isdigit()
+
+        if not (is_encrypted_id or is_plain_id):
             console.print(f"[red]Error: Invalid note ID '{note_id}'[/red]")
             console.print("[yellow]Tip: Use 'notes search <query>' to find note IDs[/yellow]")
             return
