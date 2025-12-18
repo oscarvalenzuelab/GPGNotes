@@ -1037,7 +1037,6 @@ def todos(show_all, note_id, folder):
     """
     config = Config()
     index = SearchIndex(config)
-    storage = Storage(config)
 
     try:
         # Resolve note path if note_id specified
@@ -1061,7 +1060,7 @@ def todos(show_all, note_id, folder):
             if folder:
                 console.print(f"[yellow]No tasks found in folder '{folder}'[/yellow]")
             elif note_id:
-                console.print(f"[yellow]No tasks found in specified note[/yellow]")
+                console.print("[yellow]No tasks found in specified note[/yellow]")
             else:
                 console.print("[yellow]No tasks found[/yellow]")
             console.print(
