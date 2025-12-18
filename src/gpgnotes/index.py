@@ -6,6 +6,7 @@ from typing import List, Tuple
 
 from .config import Config
 from .note import Note
+from .todos import parse_todos
 
 
 class SearchIndex:
@@ -19,11 +20,17 @@ class SearchIndex:
         self._init_db()
 
     def _init_db(self):
-        """Initialize database with FTS5 table."""
+        """Initialize database with FTS5 table and todos table.
+
+        Handles migrations for existing databases:
+        - Creates notes_fts if not exists
+        - Creates todos table if not exists (new in v0.3.0)
+        - Adds indexes for efficient queries
+        """
         self.conn = sqlite3.connect(str(self.db_path))
         self.conn.row_factory = sqlite3.Row
 
-        # Check if table exists and has the correct schema
+        # Check if notes_fts table exists and has the correct schema
         try:
             cursor = self.conn.execute("SELECT is_plain FROM notes_fts LIMIT 1")
             cursor.fetchone()
@@ -32,7 +39,7 @@ class SearchIndex:
             self.conn.execute("DROP TABLE IF EXISTS notes_fts")
             self.conn.commit()
 
-        # Create FTS5 virtual table
+        # Create FTS5 virtual table for notes
         self.conn.execute("""
             CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts
             USING fts5(
@@ -44,6 +51,28 @@ class SearchIndex:
                 modified UNINDEXED,
                 is_plain UNINDEXED
             )
+        """)
+
+        # Migration: Create todos table if it doesn't exist (v0.3.0+)
+        # This is safe to run on both new and existing databases
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS todos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                note_path TEXT NOT NULL,
+                line_number INTEGER NOT NULL,
+                task TEXT NOT NULL,
+                completed BOOLEAN NOT NULL DEFAULT 0,
+                due_date TEXT,
+                UNIQUE(note_path, line_number)
+            )
+        """)
+
+        # Create indexes for efficient queries (safe to run multiple times)
+        self.conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_todos_note_path ON todos(note_path)
+        """)
+        self.conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_todos_completed ON todos(completed)
         """)
 
         self.conn.commit()
@@ -84,6 +113,23 @@ class SearchIndex:
 
         self.conn.commit()
 
+        # Extract and store todos from the note content
+        todos = parse_todos(note.content, file_path_str)
+        if todos:
+            todo_dicts = [
+                {
+                    "line_number": t.line_number,
+                    "task": t.task,
+                    "completed": t.completed,
+                    "due_date": t.due_date,
+                }
+                for t in todos
+            ]
+            self.update_todos(file_path_str, todo_dicts)
+        else:
+            # Clear any existing todos if note no longer has any
+            self.remove_todos_for_note(file_path_str)
+
     def remove_note(self, file_path: Path):
         """Remove note from index."""
         # Try to match both absolute and as-is paths
@@ -94,6 +140,10 @@ class SearchIndex:
         """,
             (abs_path, str(file_path)),
         )
+
+        # Also remove todos for this note
+        self.remove_todos_for_note(abs_path)
+        self.remove_todos_for_note(str(file_path))
 
         self.conn.commit()
 
@@ -206,6 +256,160 @@ class SearchIndex:
             )
 
         return results
+
+    def get_folders(self) -> List[Tuple[str, int]]:
+        """
+        Get all folders (tags with 'folder:' prefix) with note counts.
+
+        Returns:
+            List of (folder_name, count) tuples sorted by count descending.
+        """
+        # Get all tags from all notes
+        cursor = self.conn.execute("SELECT tags FROM notes_fts")
+
+        folder_counts = {}
+        for row in cursor:
+            if row["tags"]:
+                for tag in row["tags"].split():
+                    if tag.startswith("folder:"):
+                        folder_name = tag[7:]  # Remove 'folder:' prefix
+                        folder_counts[folder_name] = folder_counts.get(folder_name, 0) + 1
+
+        # Sort by count descending, then by name
+        return sorted(folder_counts.items(), key=lambda x: (-x[1], x[0]))
+
+    def update_todos(self, note_path: str, todos: List[dict]):
+        """
+        Update todos for a note.
+
+        Args:
+            note_path: Path to the note file
+            todos: List of todo dicts with keys: line_number, task, completed
+        """
+        # Delete existing todos for this note
+        self.conn.execute("DELETE FROM todos WHERE note_path = ?", (note_path,))
+
+        # Insert new todos
+        for todo in todos:
+            self.conn.execute(
+                """
+                INSERT INTO todos (note_path, line_number, task, completed, due_date)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    note_path,
+                    todo["line_number"],
+                    todo["task"],
+                    1 if todo["completed"] else 0,
+                    todo.get("due_date"),
+                ),
+            )
+
+        self.conn.commit()
+
+    def get_todos(
+        self,
+        completed: bool = None,
+        note_path: str = None,
+        folder: str = None,
+    ) -> List[dict]:
+        """
+        Get todos with optional filtering.
+
+        Args:
+            completed: Filter by completion status (None for all)
+            note_path: Filter by specific note path
+            folder: Filter by folder name (notes with folder:<name> tag)
+
+        Returns:
+            List of todo dicts with note metadata
+        """
+        # Build query with joins to get note metadata
+        query = """
+            SELECT t.id, t.note_path, t.line_number, t.task, t.completed, t.due_date,
+                   n.title, n.tags, n.modified
+            FROM todos t
+            LEFT JOIN notes_fts n ON t.note_path = n.file_path
+            WHERE 1=1
+        """
+        params = []
+
+        if completed is not None:
+            query += " AND t.completed = ?"
+            params.append(1 if completed else 0)
+
+        if note_path:
+            query += " AND t.note_path = ?"
+            params.append(note_path)
+
+        if folder:
+            # Filter by folder tag
+            folder_tag = f"folder:{folder}"
+            query += " AND n.tags LIKE ?"
+            params.append(f"%{folder_tag}%")
+
+        query += " ORDER BY n.modified DESC, t.line_number ASC"
+
+        cursor = self.conn.execute(query, params)
+
+        results = []
+        for row in cursor:
+            results.append(
+                {
+                    "id": row["id"],
+                    "note_path": row["note_path"],
+                    "line_number": row["line_number"],
+                    "task": row["task"],
+                    "completed": bool(row["completed"]),
+                    "due_date": row["due_date"],
+                    "note_title": row["title"],
+                    "note_tags": row["tags"].split() if row["tags"] else [],
+                    "note_modified": row["modified"],
+                }
+            )
+
+        return results
+
+    def get_todo_counts(self, folder: str = None) -> Tuple[int, int]:
+        """
+        Get count of incomplete and complete todos.
+
+        Args:
+            folder: Optional folder filter
+
+        Returns:
+            Tuple of (incomplete_count, complete_count)
+        """
+        if folder:
+            folder_tag = f"folder:{folder}"
+            cursor = self.conn.execute(
+                """
+                SELECT
+                    SUM(CASE WHEN t.completed = 0 THEN 1 ELSE 0 END) as incomplete,
+                    SUM(CASE WHEN t.completed = 1 THEN 1 ELSE 0 END) as complete
+                FROM todos t
+                LEFT JOIN notes_fts n ON t.note_path = n.file_path
+                WHERE n.tags LIKE ?
+                """,
+                (f"%{folder_tag}%",),
+            )
+        else:
+            cursor = self.conn.execute(
+                """
+                SELECT
+                    SUM(CASE WHEN completed = 0 THEN 1 ELSE 0 END) as incomplete,
+                    SUM(CASE WHEN completed = 1 THEN 1 ELSE 0 END) as complete
+                FROM todos
+                """
+            )
+
+        row = cursor.fetchone()
+        return (row["incomplete"] or 0, row["complete"] or 0)
+
+    def remove_todos_for_note(self, note_path: str):
+        """Remove all todos for a specific note."""
+        self.conn.execute("DELETE FROM todos WHERE note_path = ?", (note_path,))
+        self.conn.commit()
 
     def rebuild_index(self, notes: List[Note]):
         """Rebuild entire index from scratch."""

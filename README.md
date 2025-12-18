@@ -12,6 +12,8 @@ A CLI note-taking tool with GPG encryption, automatic tagging, full-text search,
 - **GPG Encryption** - Every note is encrypted individually with GPG
 - **Full-Text Search** - Fast SQLite FTS5-powered search across all notes
 - **Auto-Tagging** - Intelligent tag generation using TF-IDF
+- **Folders** - Tag-based virtual folders for organizing notes
+- **Todo Tracking** - Aggregate tasks from markdown checkboxes across all notes
 - **Git Sync** - Automatic synchronization with private GitHub repositories
 - **Daily Notes** - Captain's Log style quick entries with summaries ([docs](docs/daily-notes.md))
 - **Note Templates** - Built-in templates (meeting, project, bug, journal, research) with custom template support
@@ -91,12 +93,21 @@ notes sync
 |---------|-------------|
 | `notes new "Title"` | Create a new note |
 | `notes new --template meeting` | Create note from template |
+| `notes new --folder work` | Create note in folder |
 | `notes list` | List all notes |
 | `notes list --preview` | List with content preview |
+| `notes list --folder work` | List notes in folder |
 | `notes list --page-size 10` | List with custom pagination |
 | `notes recent` | Show 5 most recent notes |
 | `notes search "query"` | Full-text search |
 | `notes search --tag work` | Search by tag |
+| `notes search --folder work` | Search within folder |
+| `notes folders` | List all folders with counts |
+| `notes move <id> --folder work` | Add note to folder |
+| `notes move <id> --unfolder work` | Remove note from folder |
+| `notes todos` | List incomplete tasks |
+| `notes todos --all` | Include completed tasks |
+| `notes todos --folder work` | Tasks from specific folder |
 | `notes open <id>` | Open note by ID |
 | `notes open "title"` | Open by title (fuzzy match) |
 | `notes open --last` | Open most recent note |

@@ -209,7 +209,7 @@ def _background_sync():
 
 @click.group(invoke_without_command=True)
 @click.pass_context
-@click.version_option(version="0.2.7")
+@click.version_option(version="0.3.0")
 def main(ctx):
     """GPGNotes - Encrypted note-taking with Git sync."""
     # Register exit handler for background sync
@@ -395,15 +395,17 @@ You're ready to start! Try:
 @main.command()
 @click.argument("title", required=False)
 @click.option("--tags", "-t", help="Comma-separated tags")
+@click.option("--folder", "-f", help="Folder to organize note (adds folder:<name> tag)")
 @click.option("--template", help="Template to use")
 @click.option("--var", multiple=True, help="Template variable in key=value format")
-def new(title, tags, template, var):
+def new(title, tags, folder, template, var):
     """Create a new note, optionally from a template.
 
     Examples:
         notes new "Team Meeting"                    # Blank note
         notes new "Sprint Planning" --template meeting --var project="Backend"
         notes new "Bug Fix" --template bug
+        notes new "Task List" --folder work         # Create in 'work' folder
     """
     config = Config()
 
@@ -422,6 +424,10 @@ def new(title, tags, template, var):
 
     # Parse tags
     tag_list = [t.strip() for t in tags.split(",")] if tags else []
+
+    # Add folder tag if specified
+    if folder:
+        tag_list.append(f"folder:{folder}")
 
     # Initialize template manager
     templates_dir = config.config_dir / "templates"
@@ -492,9 +498,10 @@ def new(title, tags, template, var):
 @main.command()
 @click.argument("query", required=False)
 @click.option("--tag", "-t", help="Search by tag")
+@click.option("--folder", "-f", help="Filter by folder")
 @click.option("--page-size", "-n", default=20, help="Items per page (default: 20)")
 @click.option("--no-pagination", is_flag=True, help="Disable pagination, show all results")
-def search(query, tag, page_size, no_pagination):
+def search(query, tag, folder, page_size, no_pagination):
     """Search notes with pagination."""
     from datetime import datetime
 
@@ -502,11 +509,14 @@ def search(query, tag, page_size, no_pagination):
     index = SearchIndex(config)
     storage = Storage(config)
 
+    # Convert folder to tag format
+    effective_tag = f"folder:{folder}" if folder else tag
+
     try:
         # Get file paths from index
-        if tag:
-            # Search by tag
-            results = index.search_by_tag(tag)
+        if effective_tag:
+            # Search by tag (or folder)
+            results = index.search_by_tag(effective_tag)
         elif query:
             # Full-text search
             results = index.search(query)
@@ -517,7 +527,10 @@ def search(query, tag, page_size, no_pagination):
             results = [r[0] for r in results]  # Extract file paths
 
         if not results:
-            console.print("[yellow]No notes found[/yellow]")
+            if folder:
+                console.print(f"[yellow]No notes found in folder '{folder}'[/yellow]")
+            else:
+                console.print("[yellow]No notes found[/yellow]")
             index.close()
             return
 
@@ -587,6 +600,8 @@ def search(query, tag, page_size, no_pagination):
         # Build title
         if query:
             table_title = f"Search: '{query}'"
+        elif folder:
+            table_title = f"Folder: '{folder}'"
         elif tag:
             table_title = f"Tagged: '{tag}'"
         else:
@@ -774,8 +789,9 @@ def _find_note_by_title(storage: Storage, query: str) -> Optional[Path]:
 )
 @click.option("--page-size", "-n", default=20, help="Items per page (default: 20)")
 @click.option("--tag", "-t", help="Filter by tag")
+@click.option("--folder", "-f", help="Filter by folder")
 @click.option("--no-pagination", is_flag=True, help="Disable pagination, show all results")
-def list_cmd(preview, sort, page_size, tag, no_pagination):
+def list_cmd(preview, sort, page_size, tag, folder, no_pagination):
     """List all notes with optional filtering and sorting.
 
     Examples:
@@ -783,6 +799,7 @@ def list_cmd(preview, sort, page_size, tag, no_pagination):
         notes list --preview          # Show content preview
         notes list --sort title       # Sort alphabetically
         notes list --tag work         # Filter by tag
+        notes list --folder work      # Filter by folder
         notes list -n 10              # Show 10 items per page
         notes list --no-pagination    # Show all results at once
     """
@@ -794,14 +811,19 @@ def list_cmd(preview, sort, page_size, tag, no_pagination):
     config = Config()
     storage = Storage(config)
 
+    # Determine effective tag filter (folder takes precedence for display message)
+    effective_tag = f"folder:{folder}" if folder else tag
+
     try:
         # Use index for fast metadata retrieval (no decryption!)
         search_index = SearchIndex(config)
-        notes_metadata = search_index.get_all_metadata(sort_by=sort, tag_filter=tag)
+        notes_metadata = search_index.get_all_metadata(sort_by=sort, tag_filter=effective_tag)
         search_index.close()
 
         if not notes_metadata:
-            if tag:
+            if folder:
+                console.print(f"[yellow]No notes found in folder '{folder}'[/yellow]")
+            elif tag:
                 console.print(f"[yellow]No notes found with tag '{tag}'[/yellow]")
             else:
                 console.print("[yellow]No notes found[/yellow]")
@@ -894,6 +916,195 @@ def list_cmd(preview, sort, page_size, tag, no_pagination):
 
     except Exception as e:
         console.print(f"[red]Error listing notes: {e}[/red]")
+
+
+@main.command()
+@click.argument("note_id")
+@click.option("--folder", "-f", help="Add note to folder")
+@click.option("--unfolder", "-u", help="Remove note from folder")
+def move(note_id, folder, unfolder):
+    """Move a note to/from folders.
+
+    Examples:
+        notes move 20251218123456 --folder work     # Add to 'work' folder
+        notes move 20251218123456 -f projects       # Short form
+        notes move 20251218123456 --unfolder work   # Remove from folder
+        notes move 20251218123456 -u work           # Short form
+    """
+    if not folder and not unfolder:
+        console.print("[red]Error: Specify --folder or --unfolder[/red]")
+        sys.exit(1)
+
+    config = Config()
+    storage = Storage(config)
+    index = SearchIndex(config)
+
+    try:
+        # Find the note
+        note_path = _find_note(note_id, config)
+        if not note_path:
+            sys.exit(1)
+
+        # Load the note
+        note = storage.load_note(note_path)
+
+        # Modify tags
+        modified = False
+
+        if folder:
+            folder_tag = f"folder:{folder}"
+            if folder_tag not in note.tags:
+                note.tags.append(folder_tag)
+                modified = True
+                console.print(f"[green]✓[/green] Added to folder '{folder}'")
+            else:
+                console.print(f"[yellow]Note already in folder '{folder}'[/yellow]")
+
+        if unfolder:
+            folder_tag = f"folder:{unfolder}"
+            if folder_tag in note.tags:
+                note.tags.remove(folder_tag)
+                modified = True
+                console.print(f"[green]✓[/green] Removed from folder '{unfolder}'")
+            else:
+                console.print(f"[yellow]Note not in folder '{unfolder}'[/yellow]")
+
+        # Save if modified
+        if modified:
+            storage.save_note(note)
+            index.add_note(note)
+
+            # Sync if enabled (background)
+            if config.get("auto_sync"):
+                _sync_in_background(config, f"Move note: {note.title}")
+
+    finally:
+        index.close()
+
+
+@main.command()
+def folders():
+    """List all folders with note counts.
+
+    Folders are virtual collections based on 'folder:' tag prefixes.
+
+    Examples:
+        notes folders              # List all folders
+        notes list --folder work   # View notes in a folder
+        notes new "Note" -f work   # Create note in folder
+    """
+    config = Config()
+    index = SearchIndex(config)
+
+    try:
+        folder_list = index.get_folders()
+
+        if not folder_list:
+            console.print("[yellow]No folders found[/yellow]")
+            console.print(
+                "\n[dim]Tip: Create a note in a folder with 'notes new \"Title\" --folder <name>'[/dim]"
+            )
+            return
+
+        table = Table(title=f"Folders ({len(folder_list)})")
+        table.add_column("Folder", style="cyan", width=30)
+        table.add_column("Notes", style="green", justify="right", width=8)
+
+        for folder_name, count in folder_list:
+            table.add_row(folder_name, str(count))
+
+        console.print(table)
+        console.print("\n[dim]Tip: Use 'notes list --folder <name>' to view notes[/dim]")
+
+    finally:
+        index.close()
+
+
+@main.command()
+@click.option("--all", "-a", "show_all", is_flag=True, help="Include completed tasks")
+@click.option("--note", "-n", "note_id", help="Filter by specific note ID")
+@click.option("--folder", "-f", help="Filter by folder")
+def todos(show_all, note_id, folder):
+    """List todo items from notes.
+
+    Aggregates all checkbox items (- [ ] / - [x]) from your notes.
+
+    Examples:
+        notes todos                    # Show incomplete tasks
+        notes todos --all              # Include completed tasks
+        notes todos --folder work      # Tasks from 'work' folder
+        notes todos --note 20251218... # Tasks from specific note
+    """
+    config = Config()
+    index = SearchIndex(config)
+
+    try:
+        # Resolve note path if note_id specified
+        note_path = None
+        if note_id:
+            found_path = _find_note(note_id, config)
+            if found_path:
+                note_path = str(found_path.resolve())
+            else:
+                return
+
+        # Get todos with filters
+        completed_filter = None if show_all else False
+        todo_list = index.get_todos(
+            completed=completed_filter,
+            note_path=note_path,
+            folder=folder,
+        )
+
+        if not todo_list:
+            if folder:
+                console.print(f"[yellow]No tasks found in folder '{folder}'[/yellow]")
+            elif note_id:
+                console.print("[yellow]No tasks found in specified note[/yellow]")
+            else:
+                console.print("[yellow]No tasks found[/yellow]")
+            console.print("\n[dim]Tip: Add checkboxes to notes: - [ ] Your task here[/dim]")
+            return
+
+        # Get counts
+        incomplete, complete = index.get_todo_counts(folder=folder)
+        title_parts = []
+        if show_all:
+            title_parts.append(f"{incomplete} incomplete, {complete} complete")
+        else:
+            title_parts.append(f"{incomplete} incomplete")
+        if folder:
+            title_parts.append(f"in '{folder}'")
+
+        # Group by note
+        from collections import defaultdict
+
+        by_note = defaultdict(list)
+        for todo in todo_list:
+            by_note[todo["note_path"]].append(todo)
+
+        console.print(f"\n[bold]Tasks ({', '.join(title_parts)})[/bold]\n")
+
+        for note_path_key, tasks in by_note.items():
+            # Get note title
+            note_title = tasks[0]["note_title"] or "Unknown Note"
+            note_id_str = Note.extract_id_from_path(Path(note_path_key))
+
+            console.print(f"[cyan]Note:[/cyan] {note_title} ([dim]{note_id_str}[/dim])")
+
+            for task in tasks:
+                checkbox = "[green]☑[/green]" if task["completed"] else "[yellow]☐[/yellow]"
+                line_info = f"[dim]L{task['line_number']}:[/dim]"
+                task_style = "[dim]" if task["completed"] else ""
+                task_end = "[/dim]" if task["completed"] else ""
+                console.print(f"  {checkbox} {line_info} {task_style}{task['task']}{task_end}")
+
+            console.print()
+
+        console.print("[dim]Tip: Edit notes directly to toggle checkboxes[/dim]")
+
+    finally:
+        index.close()
 
 
 @main.command()
@@ -2535,8 +2746,11 @@ def interactive_mode():
             "  [green]new[/green] - Create new note\n"
             "  [green]list[/green] - List all notes\n"
             "  [green]recent[/green] - Show recent notes\n"
+            "  [green]folders[/green] - List folders\n"
+            "  [green]todos[/green] - List tasks from notes\n"
             "  [green]open <ID|title>[/green] - Open a note\n"
             "  [green]delete <ID>[/green] - Delete a note\n"
+            "  [green]move <ID> -f <folder>[/green] - Move to folder\n"
             "  [green]import <file|URL>[/green] - Import file/URL as note\n"
             "  [green]clip <URL>[/green] - Clip web page as note\n"
             "  [green]enhance <ID>[/green] - Enhance note with AI\n"
@@ -2583,8 +2797,16 @@ def interactive_mode():
                         "[cyan]Available Commands:[/cyan]\n\n"
                         '  [green]new "Title"[/green] - Create new note\n'
                         '  [green]new "Title" --template bug[/green] - Create from template\n'
-                        "  [green]list[/green] - List all notes (--preview, --sort, --tag)\n"
+                        '  [green]new "Title" -f work[/green] - Create in folder\n'
+                        "  [green]list[/green] - List all notes (--preview, --sort, --tag, --folder)\n"
+                        "  [green]list -f work[/green] - List notes in folder\n"
                         "  [green]recent[/green] - Show recent notes\n"
+                        "  [green]folders[/green] - List all folders\n"
+                        "  [green]todos[/green] - List tasks from notes\n"
+                        "  [green]todos -a[/green] - Include completed tasks\n"
+                        "  [green]todos -f work[/green] - Tasks from folder\n"
+                        "  [green]move <ID> -f <folder>[/green] - Add note to folder\n"
+                        "  [green]move <ID> -u <folder>[/green] - Remove from folder\n"
                         "  [green]open <ID|title>[/green] - Open a note by ID or title\n"
                         "  [green]delete <ID>[/green] - Delete a note by ID\n"
                         "  [green]import <file|URL>[/green] - Import file or URL as note\n"
@@ -2614,6 +2836,7 @@ def interactive_mode():
                 title = None
                 template = None
                 tags = None
+                folder_opt = None
                 if args:
                     import shlex
 
@@ -2636,23 +2859,123 @@ def interactive_mode():
                         elif part == "--tags" and i + 1 < len(parts):
                             tags = parts[i + 1]
                             i += 2
+                        elif part in ["-f", "--folder"] and i + 1 < len(parts):
+                            folder_opt = parts[i + 1]
+                            i += 2
                         elif not part.startswith("-") and title is None:
                             title = part
                             i += 1
                         else:
                             i += 1
 
-                ctx.invoke(new, title=title, tags=tags, template=template, var=())
+                ctx.invoke(
+                    new, title=title, tags=tags, folder=folder_opt, template=template, var=()
+                )
             elif command == "list":
                 ctx = click.Context(list_cmd)
+                # Parse options for list command
+                folder_opt = None
+                tag_opt = None
+                if args:
+                    import shlex
+
+                    try:
+                        parts = shlex.split(args)
+                    except ValueError:
+                        parts = args.split()
+
+                    i = 0
+                    while i < len(parts):
+                        part = parts[i]
+                        if part in ["-f", "--folder"] and i + 1 < len(parts):
+                            folder_opt = parts[i + 1]
+                            i += 2
+                        elif part in ["-t", "--tag"] and i + 1 < len(parts):
+                            tag_opt = parts[i + 1]
+                            i += 2
+                        else:
+                            i += 1
+
                 ctx.invoke(
                     list_cmd,
                     preview=False,
                     sort="modified",
                     page_size=20,
-                    tag=None,
+                    tag=tag_opt,
+                    folder=folder_opt,
                     no_pagination=False,
                 )
+            elif command == "folders":
+                ctx = click.Context(folders)
+                ctx.invoke(folders)
+            elif command == "todos":
+                # Parse options for todos command
+                show_all = False
+                note_id = None
+                folder_opt = None
+                if args:
+                    import shlex
+
+                    try:
+                        parts = shlex.split(args)
+                    except ValueError:
+                        parts = args.split()
+
+                    i = 0
+                    while i < len(parts):
+                        part = parts[i]
+                        if part in ["-a", "--all"]:
+                            show_all = True
+                            i += 1
+                        elif part in ["-n", "--note"] and i + 1 < len(parts):
+                            note_id = parts[i + 1]
+                            i += 2
+                        elif part in ["-f", "--folder"] and i + 1 < len(parts):
+                            folder_opt = parts[i + 1]
+                            i += 2
+                        else:
+                            i += 1
+
+                ctx = click.Context(todos)
+                ctx.invoke(todos, show_all=show_all, note_id=note_id, folder=folder_opt)
+            elif command == "move":
+                if not args:
+                    console.print("[yellow]Usage: move <ID> -f <folder> or -u <folder>[/yellow]")
+                else:
+                    import shlex
+
+                    try:
+                        parts = shlex.split(args)
+                    except ValueError:
+                        parts = args.split()
+
+                    note_id = None
+                    folder_opt = None
+                    unfolder_opt = None
+                    i = 0
+                    while i < len(parts):
+                        part = parts[i]
+                        if part in ["-f", "--folder"] and i + 1 < len(parts):
+                            folder_opt = parts[i + 1]
+                            i += 2
+                        elif part in ["-u", "--unfolder"] and i + 1 < len(parts):
+                            unfolder_opt = parts[i + 1]
+                            i += 2
+                        elif not part.startswith("-") and note_id is None:
+                            note_id = part
+                            i += 1
+                        else:
+                            i += 1
+
+                    if not note_id:
+                        console.print(
+                            "[yellow]Usage: move <ID> -f <folder> or -u <folder>[/yellow]"
+                        )
+                    elif not folder_opt and not unfolder_opt:
+                        console.print("[red]Error: Specify -f <folder> or -u <folder>[/red]")
+                    else:
+                        ctx = click.Context(move)
+                        ctx.invoke(move, note_id=note_id, folder=folder_opt, unfolder=unfolder_opt)
             elif command == "recent":
                 ctx = click.Context(list_cmd)
                 ctx.invoke(
@@ -2661,6 +2984,7 @@ def interactive_mode():
                     sort="modified",
                     page_size=5,
                     tag=None,
+                    folder=None,
                     no_pagination=True,
                 )
             elif command == "open" and args:
@@ -2769,7 +3093,14 @@ def interactive_mode():
             else:
                 # Treat as search query
                 ctx = click.Context(search)
-                ctx.invoke(search, query=user_input, tag=None, page_size=20, no_pagination=False)
+                ctx.invoke(
+                    search,
+                    query=user_input,
+                    tag=None,
+                    folder=None,
+                    page_size=20,
+                    no_pagination=False,
+                )
 
         except KeyboardInterrupt:
             break

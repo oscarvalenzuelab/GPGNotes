@@ -5,6 +5,43 @@ All notable changes to GPGNotes will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2025-12-18
+
+### Added
+
+- **Folders (Virtual Organization)**: Tag-based virtual folders for organizing notes without changing storage structure.
+  - `notes folders` - List all folders with note counts
+  - `notes new --folder <name>` - Create note in a folder
+  - `notes list --folder <name>` - List notes in a folder
+  - `notes search --folder <name>` - Search within a folder
+  - `notes move <id> --folder <name>` - Add note to folder
+  - `notes move <id> --unfolder <name>` - Remove note from folder
+  - Folders use `folder:` tag prefix (e.g., `folder:work`, `folder:personal`)
+  - Notes can belong to multiple folders
+  - Full shell mode support with all folder commands
+
+- **Todo Tracking**: Aggregate and manage tasks from markdown checkboxes across all notes.
+  - `notes todos` - List all incomplete tasks
+  - `notes todos --all` - Include completed tasks
+  - `notes todos --folder <name>` - Filter tasks by folder
+  - `notes todos --note <id>` - Show tasks from specific note
+  - Parses `- [ ]` (incomplete) and `- [x]` (complete) checkbox syntax
+  - Tasks displayed grouped by source note with line numbers
+  - Automatic extraction and indexing when notes are saved
+  - Full shell mode support with todos command
+
+- **New `todos.py` Module**: Parser for extracting todo items from markdown content.
+  - `parse_todos()` - Extract todo items with line numbers
+  - `count_todos()` - Count complete/incomplete tasks
+  - `toggle_todo()` - Toggle checkbox state at line number
+  - `TodoItem` dataclass for representing tasks
+
+### Changed
+
+- **Database Migration**: New `todos` table automatically created on first run for existing installations. No manual migration required.
+- **Indexing**: Notes now automatically extract and index todo items when saved or re-indexed.
+- **Interactive Mode**: Welcome and help panels updated with folders and todos commands.
+
 ## [0.2.14] - 2025-12-17
 
 ### Fixed
