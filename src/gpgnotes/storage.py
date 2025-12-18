@@ -245,8 +245,10 @@ class Storage:
         return False
 
     def find_by_id(self, note_id: str) -> Path:
-        """Find note file by ID (timestamp)."""
-        # Search for file with this ID in all directories (including plain)
+        """Find note file by ID (timestamp).
+
+        Plain exports have 'p' suffix (e.g., 20251217191420p vs 20251217191420).
+        """
         for file_path in self.list_notes(include_plain=True):
             if Note.extract_id_from_path(file_path) == note_id:
                 return file_path
