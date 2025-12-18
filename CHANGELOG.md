@@ -5,6 +5,13 @@ All notable changes to GPGNotes will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.13] - 2025-12-17
+
+### Fixed
+
+- **Git Sync**: Fixed `notes sync` command to properly configure git remote for existing repositories. Previously, the remote URL was only configured when initializing a new repository, causing sync failures for existing repos.
+- **Git Sync Push**: Fixed sync command to push all unpushed commits, not just newly created ones. This ensures plain notes and all other changes are properly uploaded to GitHub.
+
 ## [0.2.12] - 2025-12-17
 
 *Same as 0.2.11 - version bump for PR*
