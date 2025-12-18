@@ -23,6 +23,15 @@ class SearchIndex:
         self.conn = sqlite3.connect(str(self.db_path))
         self.conn.row_factory = sqlite3.Row
 
+        # Check if table exists and has the correct schema
+        try:
+            cursor = self.conn.execute("SELECT is_plain FROM notes_fts LIMIT 1")
+            cursor.fetchone()
+        except sqlite3.OperationalError:
+            # Table doesn't exist or has old schema - recreate it
+            self.conn.execute("DROP TABLE IF EXISTS notes_fts")
+            self.conn.commit()
+
         # Create FTS5 virtual table
         self.conn.execute("""
             CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts
@@ -32,7 +41,8 @@ class SearchIndex:
                 tags,
                 file_path UNINDEXED,
                 created UNINDEXED,
-                modified UNINDEXED
+                modified UNINDEXED,
+                is_plain UNINDEXED
             )
         """)
 
@@ -49,8 +59,8 @@ class SearchIndex:
         # Insert new entry
         self.conn.execute(
             """
-            INSERT INTO notes_fts (title, content, tags, file_path, created, modified)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO notes_fts (title, content, tags, file_path, created, modified, is_plain)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
             (
                 note.title,
@@ -59,6 +69,7 @@ class SearchIndex:
                 str(note.file_path),
                 note.created.isoformat(),
                 note.modified.isoformat(),
+                1 if getattr(note, "is_plain", False) else 0,
             ),
         )
 
@@ -144,10 +155,10 @@ class SearchIndex:
             tag_filter: Filter by tag (None for all notes)
 
         Returns:
-            List of dicts with keys: file_path, title, tags, created, modified
+            List of dicts with keys: file_path, title, tags, created, modified, is_plain
         """
         # Build query
-        query = "SELECT file_path, title, tags, created, modified FROM notes_fts"
+        query = "SELECT file_path, title, tags, created, modified, is_plain FROM notes_fts"
 
         # Add tag filter if specified
         params = []
@@ -179,6 +190,7 @@ class SearchIndex:
                     "tags": row["tags"].split() if row["tags"] else [],
                     "created": row["created"],
                     "modified": row["modified"],
+                    "is_plain": bool(row.get("is_plain", 0)),
                 }
             )
 

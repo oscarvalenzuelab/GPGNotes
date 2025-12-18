@@ -5,6 +5,29 @@ All notable changes to GPGNotes will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.8] - 2025-12-17
+
+### Added
+
+- **Plain File Support**: Full integration of plain (non-encrypted) exported files into the notes system.
+  - Plain files are now included in `notes list`, `notes search`, `notes open`, and `notes delete` commands
+  - Visual indicators in list view: 📄 for plain files, 🔒 for encrypted files
+  - Direct editing of plain files without encryption/decryption overhead
+  - Plain files automatically indexed for fast searching
+  - Database schema updated with `is_plain` column to track file types
+  - Run `notes reindex` after upgrade to index existing plain files
+
+### Fixed
+
+- **Export Sync Issue**: Fixed `notes export --plain` not syncing exported files to git repository. Plain-exported notes are now automatically added and committed when auto-sync is enabled.
+
+### Changed
+
+- `Storage.list_notes()` now accepts `include_plain` parameter to include plain files
+- `SearchIndex` now tracks plain file status for proper display in list view
+- All index rebuild operations now include plain files by default
+- Database automatically migrates to new schema on first run
+
 ## [0.2.4] - 2025-12-17
 
 ### Added
@@ -361,6 +384,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sync requires Git remote to be configured manually
 - Initial sync from existing remote requires `--allow-unrelated-histories` (handled automatically)
 
+[0.2.8]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.2.8
 [0.2.2]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.2.2
 [0.2.1]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.2.1
 [0.1.12]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.1.12
