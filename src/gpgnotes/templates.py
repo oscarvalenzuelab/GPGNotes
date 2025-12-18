@@ -130,6 +130,103 @@ tags: ["research"]
 -
 
 """,
+    "1on1": """---
+title: "1:1 with {{person}}"
+tags: ["1on1", "meeting"]
+---
+
+# 1:1 with {{person}}
+
+**Date**: {{date}}
+
+## Check-in
+- How are you doing?
+- Any blockers or concerns?
+
+## Their Topics
+-
+
+## My Topics
+-
+
+## Career & Growth
+-
+
+## Action Items
+- [ ]
+
+## Notes
+
+
+## Follow-up for Next Time
+-
+
+""",
+    "prompt": """---
+title: "{{title}}"
+tags: ["prompt", "ai"]
+model:
+version: 1
+status: draft
+---
+
+# {{title}}
+
+## Purpose
+<!-- What is this prompt designed to accomplish? -->
+
+
+## Target Model
+- Model:
+- Temperature:
+- Max tokens:
+
+## System Prompt
+```
+```
+
+## User Prompt Template
+```
+```
+
+## Input Variables
+| Variable | Description | Example |
+|----------|-------------|---------|
+| | | |
+
+## Example Input
+```
+```
+
+## Expected Output
+```
+```
+
+## Context / Background
+<!-- Additional context the AI needs to understand -->
+
+
+## Constraints & Guidelines
+- [ ]
+- [ ]
+
+## Edge Cases
+-
+
+## Evaluation Criteria
+- [ ] Accuracy:
+- [ ] Tone:
+- [ ] Format:
+
+## Iteration Log
+
+### {{date}} - v1
+- Initial version
+
+## Notes
+
+
+""",
 }
 
 

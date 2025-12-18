@@ -209,7 +209,7 @@ def _background_sync():
 
 @click.group(invoke_without_command=True)
 @click.pass_context
-@click.version_option(version="0.3.0")
+@click.version_option(version="0.3.1")
 def main(ctx):
     """GPGNotes - Encrypted note-taking with Git sync."""
     # Register exit handler for background sync
@@ -790,8 +790,9 @@ def _find_note_by_title(storage: Storage, query: str) -> Optional[Path]:
 @click.option("--page-size", "-n", default=20, help="Items per page (default: 20)")
 @click.option("--tag", "-t", help="Filter by tag")
 @click.option("--folder", "-f", help="Filter by folder")
+@click.option("--inbox", "-i", is_flag=True, help="Show only notes without folders")
 @click.option("--no-pagination", is_flag=True, help="Disable pagination, show all results")
-def list_cmd(preview, sort, page_size, tag, folder, no_pagination):
+def list_cmd(preview, sort, page_size, tag, folder, inbox, no_pagination):
     """List all notes with optional filtering and sorting.
 
     Examples:
@@ -800,6 +801,7 @@ def list_cmd(preview, sort, page_size, tag, folder, no_pagination):
         notes list --sort title       # Sort alphabetically
         notes list --tag work         # Filter by tag
         notes list --folder work      # Filter by folder
+        notes list --inbox            # Show notes without folders (inbox)
         notes list -n 10              # Show 10 items per page
         notes list --no-pagination    # Show all results at once
     """
@@ -817,11 +819,15 @@ def list_cmd(preview, sort, page_size, tag, folder, no_pagination):
     try:
         # Use index for fast metadata retrieval (no decryption!)
         search_index = SearchIndex(config)
-        notes_metadata = search_index.get_all_metadata(sort_by=sort, tag_filter=effective_tag)
+        notes_metadata = search_index.get_all_metadata(
+            sort_by=sort, tag_filter=effective_tag, inbox=inbox
+        )
         search_index.close()
 
         if not notes_metadata:
-            if folder:
+            if inbox:
+                console.print("[yellow]No notes found in inbox (all notes are in folders)[/yellow]")
+            elif folder:
                 console.print(f"[yellow]No notes found in folder '{folder}'[/yellow]")
             elif tag:
                 console.print(f"[yellow]No notes found with tag '{tag}'[/yellow]")
@@ -835,8 +841,10 @@ def list_cmd(preview, sort, page_size, tag, folder, no_pagination):
             table.add_column("ID", style="cyan", width=17, no_wrap=True)
             table.add_column("T", width=3, no_wrap=True)  # Just P or E
             title_width = 22 if preview else 29
-            tags_width = 12 if preview else 15
+            tags_width = 10 if preview else 12
+            folder_width = 10 if preview else 12
             table.add_column("Title", style="green", width=title_width, no_wrap=True)
+            table.add_column("Folder", style="magenta", width=folder_width, no_wrap=True)
             table.add_column("Tags", style="blue", width=tags_width, no_wrap=True)
             table.add_column("Modified", style="yellow", width=11, no_wrap=True)
             if preview:
@@ -854,12 +862,26 @@ def list_cmd(preview, sort, page_size, tag, folder, no_pagination):
                 is_plain = note_meta.get("is_plain", False)
                 type_indicator = "P" if is_plain else "E"
 
-                # Truncate title and tags to fit columns
+                # Truncate title to fit column
                 title_text = note_meta["title"]
                 if len(title_text) > title_width - 3:
                     title_text = title_text[: title_width - 3] + "..."
 
-                tags_text = ", ".join(note_meta["tags"][:3])
+                # Separate folders from regular tags
+                folders = []
+                regular_tags = []
+                for tag in note_meta["tags"]:
+                    if tag.startswith("folder:"):
+                        folders.append(tag[7:])  # Remove 'folder:' prefix
+                    else:
+                        regular_tags.append(tag)
+
+                # Format folder and tags text
+                folder_text = ", ".join(folders[:2])
+                if len(folder_text) > folder_width - 3:
+                    folder_text = folder_text[: folder_width - 3] + "..."
+
+                tags_text = ", ".join(regular_tags[:3])
                 if len(tags_text) > tags_width - 3:
                     tags_text = tags_text[: tags_width - 3] + "..."
 
@@ -867,6 +889,7 @@ def list_cmd(preview, sort, page_size, tag, folder, no_pagination):
                     note_id,
                     type_indicator,
                     title_text,
+                    folder_text,
                     tags_text,
                     modified_dt.strftime("%Y-%m-%d"),
                 ]
@@ -892,7 +915,11 @@ def list_cmd(preview, sort, page_size, tag, folder, no_pagination):
 
         # Build title
         table_title = "All Notes"
-        if tag:
+        if inbox:
+            table_title = "Inbox (No Folder)"
+        elif folder:
+            table_title = f"Folder: {folder}"
+        elif tag:
             table_title = f"Notes tagged '{tag}'"
 
         # Use pagination or show all
@@ -1123,8 +1150,8 @@ def recent(limit):
     )
 
 
-@main.command()
-def tags():
+@main.command("tags")
+def tags_cmd():
     """List all tags."""
     config = Config()
     storage = Storage(config)
@@ -1205,7 +1232,7 @@ def delete(note_id, yes):
         file_path.unlink()
 
         # Remove from index
-        index.remove_note(str(file_path))
+        index.remove_note(file_path)
 
         # Sync if enabled (background)
         if config.get("auto_sync"):
@@ -2652,14 +2679,18 @@ class NotesCompleter(Completer):
     COMMANDS = [
         "new",
         "list",
+        "inbox",
         "recent",
+        "folders",
         "open",
         "delete",
+        "move",
         "import",
         "clip",
         "enhance",
         "tags",
         "templates",
+        "todos",
         "export",
         "sync",
         "config",
@@ -2798,8 +2829,9 @@ def interactive_mode():
                         '  [green]new "Title"[/green] - Create new note\n'
                         '  [green]new "Title" --template bug[/green] - Create from template\n'
                         '  [green]new "Title" -f work[/green] - Create in folder\n'
-                        "  [green]list[/green] - List all notes (--preview, --sort, --tag, --folder)\n"
+                        "  [green]list[/green] - List all notes (--preview, --sort, --tag, --folder, --inbox)\n"
                         "  [green]list -f work[/green] - List notes in folder\n"
+                        "  [green]inbox[/green] - List notes without folders\n"
                         "  [green]recent[/green] - Show recent notes\n"
                         "  [green]folders[/green] - List all folders\n"
                         "  [green]todos[/green] - List tasks from notes\n"
@@ -2814,8 +2846,8 @@ def interactive_mode():
                         "  [green]enhance <ID>[/green] - Enhance note with AI\n"
                         '  [green]daily "entry"[/green] - Quick daily log entry\n'
                         "  [green]daily[/green] - Show today's daily entries\n"
-                        "  [green]today[/green] - Open today's daily note\n"
-                        "  [green]yesterday[/green] - Open yesterday's note\n"
+                        "  [green]daily today[/green] - Open today's daily note\n"
+                        "  [green]daily yesterday[/green] - Open yesterday's note\n"
                         "  [green]tags[/green] - Show all tags\n"
                         "  [green]templates[/green] - List available templates\n"
                         "  [green]templates <name>[/green] - Show template content\n"
@@ -2876,6 +2908,7 @@ def interactive_mode():
                 # Parse options for list command
                 folder_opt = None
                 tag_opt = None
+                inbox_opt = False
                 if args:
                     import shlex
 
@@ -2893,6 +2926,9 @@ def interactive_mode():
                         elif part in ["-t", "--tag"] and i + 1 < len(parts):
                             tag_opt = parts[i + 1]
                             i += 2
+                        elif part in ["-i", "--inbox"]:
+                            inbox_opt = True
+                            i += 1
                         else:
                             i += 1
 
@@ -2903,11 +2939,25 @@ def interactive_mode():
                     page_size=20,
                     tag=tag_opt,
                     folder=folder_opt,
+                    inbox=inbox_opt,
                     no_pagination=False,
                 )
             elif command == "folders":
                 ctx = click.Context(folders)
                 ctx.invoke(folders)
+            elif command == "inbox":
+                # Shortcut for list --inbox
+                ctx = click.Context(list_cmd)
+                ctx.invoke(
+                    list_cmd,
+                    preview=False,
+                    sort="modified",
+                    page_size=20,
+                    tag=None,
+                    folder=None,
+                    inbox=True,
+                    no_pagination=False,
+                )
             elif command == "todos":
                 # Parse options for todos command
                 show_all = False
@@ -3012,8 +3062,8 @@ def interactive_mode():
                 ctx = click.Context(clip)
                 ctx.invoke(clip, url=args, title=None, tags=None)
             elif command == "tags":
-                ctx = click.Context(tags)
-                ctx.invoke(tags)
+                ctx = click.Context(tags_cmd)
+                ctx.invoke(tags_cmd)
             elif command == "templates":
                 if args:
                     # Show specific template
@@ -3075,7 +3125,15 @@ def interactive_mode():
                 console.print("[yellow]Usage: clip <URL>[/yellow]")
                 console.print("[dim]Example: clip https://example.com/article[/dim]")
             elif command == "daily":
-                if args:
+                if args == "today":
+                    # Open today's daily note
+                    ctx = click.Context(today_cmd)
+                    ctx.invoke(today_cmd)
+                elif args == "yesterday":
+                    # Open yesterday's daily note
+                    ctx = click.Context(yesterday_cmd)
+                    ctx.invoke(yesterday_cmd)
+                elif args:
                     # Quick entry mode - use add subcommand
                     ctx = click.Context(daily_add)
                     ctx.obj = {"config": Config()}
@@ -3084,12 +3142,14 @@ def interactive_mode():
                     # Show today's entries
                     ctx = click.Context(daily)
                     ctx.invoke(daily)
-            elif command == "today":
-                ctx = click.Context(today_cmd)
-                ctx.invoke(today_cmd)
-            elif command == "yesterday":
-                ctx = click.Context(yesterday_cmd)
-                ctx.invoke(yesterday_cmd)
+            elif command in ["today", "yesterday"]:
+                # Keep backward compatibility
+                if command == "today":
+                    ctx = click.Context(today_cmd)
+                    ctx.invoke(today_cmd)
+                else:
+                    ctx = click.Context(yesterday_cmd)
+                    ctx.invoke(yesterday_cmd)
             else:
                 # Treat as search query
                 ctx = click.Context(search)

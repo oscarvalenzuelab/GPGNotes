@@ -205,7 +205,11 @@ class SearchIndex:
         return [(row["file_path"], row["title"], row["modified"]) for row in cursor]
 
     def get_all_metadata(
-        self, sort_by: str = "modified", limit: int = None, tag_filter: str = None
+        self,
+        sort_by: str = "modified",
+        limit: int = None,
+        tag_filter: str = None,
+        inbox: bool = False,
     ) -> List[dict]:
         """
         Get metadata for all notes without decryption.
@@ -214,6 +218,7 @@ class SearchIndex:
             sort_by: Sort field ('modified', 'created', or 'title')
             limit: Maximum number of results (None for all)
             tag_filter: Filter by tag (None for all notes)
+            inbox: If True, only return notes without any folder tags
 
         Returns:
             List of dicts with keys: file_path, title, tags, created, modified, is_plain
@@ -235,8 +240,8 @@ class SearchIndex:
         elif sort_by == "title":
             query += " ORDER BY title COLLATE NOCASE"
 
-        # Add limit if specified
-        if limit:
+        # Add limit if specified (but not if inbox filtering, we filter after)
+        if limit and not inbox:
             query += " LIMIT ?"
             params.append(limit)
 
@@ -244,16 +249,28 @@ class SearchIndex:
 
         results = []
         for row in cursor:
+            tags = row["tags"].split() if row["tags"] else []
+
+            # If inbox mode, skip notes that have folder tags
+            if inbox:
+                has_folder = any(t.startswith("folder:") for t in tags)
+                if has_folder:
+                    continue
+
             results.append(
                 {
                     "file_path": row["file_path"],
                     "title": row["title"],
-                    "tags": row["tags"].split() if row["tags"] else [],
+                    "tags": tags,
                     "created": row["created"],
                     "modified": row["modified"],
                     "is_plain": bool(row["is_plain"]) if "is_plain" in row.keys() else False,
                 }
             )
+
+            # Apply limit after inbox filtering
+            if limit and inbox and len(results) >= limit:
+                break
 
         return results
 
