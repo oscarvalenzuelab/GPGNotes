@@ -69,7 +69,7 @@ class SearchIndex:
                 str(note.file_path),
                 note.created.isoformat(),
                 note.modified.isoformat(),
-                1 if getattr(note, 'is_plain', False) else 0,
+                1 if getattr(note, "is_plain", False) else 0,
             ),
         )
 

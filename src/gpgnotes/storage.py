@@ -73,11 +73,7 @@ class Storage:
             # If parsing fails, create a simple note from the content
             # Use filename as title
             title = file_path.stem
-            note = Note(
-                title=title,
-                content=content,
-                file_path=file_path
-            )
+            note = Note(title=title, content=content, file_path=file_path)
             note.is_plain = True
             return note
 
