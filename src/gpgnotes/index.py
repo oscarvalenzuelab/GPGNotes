@@ -190,7 +190,7 @@ class SearchIndex:
                     "tags": row["tags"].split() if row["tags"] else [],
                     "created": row["created"],
                     "modified": row["modified"],
-                    "is_plain": bool(row.get("is_plain", 0)),
+                    "is_plain": bool(row["is_plain"]) if "is_plain" in row.keys() else False,
                 }
             )
 
