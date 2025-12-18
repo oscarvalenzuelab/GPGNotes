@@ -697,7 +697,7 @@ def open(note_id, last):
         # Edit note
         note = storage.edit_note(file_path)
 
-        # Re-index
+        # Re-index the note
         index.add_note(note)
 
         # Sync after editing (synchronous, not background)

@@ -5,6 +5,12 @@ All notable changes to GPGNotes will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.14] - 2025-12-17
+
+### Fixed
+
+- **Plain Note Indexing**: Fixed critical bug where plain notes would disappear from the list after opening/editing them. The issue was caused by inconsistent file path representations (relative vs absolute) in the search index. Now all paths are normalized to absolute paths for consistency.
+
 ## [0.2.13] - 2025-12-17
 
 ### Fixed

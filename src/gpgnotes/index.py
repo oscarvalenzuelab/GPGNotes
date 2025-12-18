@@ -53,10 +53,19 @@ class SearchIndex:
         if not note.file_path:
             return
 
-        # Delete existing entry if present
-        self.remove_note(note.file_path)
+        # Use absolute path for consistency
+        file_path_str = str(note.file_path.resolve())
 
-        # Insert new entry
+        # Delete existing entry if present (try both absolute and as-is paths)
+        self.conn.execute(
+            """
+            DELETE FROM notes_fts WHERE file_path = ? OR file_path = ?
+        """,
+            (file_path_str, str(note.file_path)),
+        )
+        self.conn.commit()
+
+        # Insert new entry with absolute path
         self.conn.execute(
             """
             INSERT INTO notes_fts (title, content, tags, file_path, created, modified, is_plain)
@@ -66,7 +75,7 @@ class SearchIndex:
                 note.title,
                 note.content,
                 " ".join(note.tags),
-                str(note.file_path),
+                file_path_str,
                 note.created.isoformat(),
                 note.modified.isoformat(),
                 1 if getattr(note, "is_plain", False) else 0,
@@ -77,11 +86,13 @@ class SearchIndex:
 
     def remove_note(self, file_path: Path):
         """Remove note from index."""
+        # Try to match both absolute and as-is paths
+        abs_path = str(file_path.resolve())
         self.conn.execute(
             """
-            DELETE FROM notes_fts WHERE file_path = ?
+            DELETE FROM notes_fts WHERE file_path = ? OR file_path = ?
         """,
-            (str(file_path),),
+            (abs_path, str(file_path)),
         )
 
         self.conn.commit()
