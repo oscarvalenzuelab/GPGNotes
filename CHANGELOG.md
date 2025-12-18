@@ -5,6 +5,27 @@ All notable changes to GPGNotes will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.2] - 2025-12-18
+
+### Added
+
+- **Full Plain Notes Support**: Complete support for creating and managing unencrypted notes (closes #17).
+  - `notes new "Title" --plain` - Create plain (unencrypted) note directly
+  - `notes decrypt <id>` - Convert encrypted note to plain
+  - `notes encrypt <id>` - Convert plain note to encrypted
+  - `notes list --plain` - Show only plain notes
+  - `notes list --encrypted` - Show only encrypted notes
+  - Plain notes stored in `notes/plain/` directory
+  - Full interactive mode support for all new commands
+
+- **Storage Method**: New `save_plain_note()` method in Storage class for creating plain notes without encryption.
+
+### Changed
+
+- **Interactive Mode**: Added `encrypt`, `decrypt` commands and `--plain` option for `new` and `list` commands.
+- **Tab Completion**: Added `encrypt` and `decrypt` to autocomplete commands.
+- **Help Text**: Updated interactive mode help with new plain note commands and options.
+
 ## [0.3.1] - 2025-12-18
 
 ### Added
@@ -501,6 +522,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sync requires Git remote to be configured manually
 - Initial sync from existing remote requires `--allow-unrelated-histories` (handled automatically)
 
+[0.3.2]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.3.2
 [0.3.1]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.3.1
 [0.3.0]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.3.0
 [0.2.12]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.2.12
