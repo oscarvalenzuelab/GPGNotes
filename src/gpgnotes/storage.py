@@ -41,6 +41,29 @@ class Storage:
         note.file_path = full_path
         return full_path
 
+    def save_plain_note(self, note: Note) -> Path:
+        """Save note to disk without encryption (plain markdown)."""
+        note.update_modified()
+        note.is_plain = True
+
+        # Get relative path and create full path in plain directory
+        rel_path = note.get_relative_path()
+        # Remove .gpg extension for plain files
+        rel_path_str = str(rel_path)
+        if rel_path_str.endswith(".gpg"):
+            rel_path_str = rel_path_str[:-4]  # Remove .gpg
+        full_path = self.plain_dir / rel_path_str
+
+        # Create directory if needed
+        full_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Save as plain markdown
+        markdown_content = note.to_markdown()
+        full_path.write_text(markdown_content, encoding="utf-8")
+
+        note.file_path = full_path
+        return full_path
+
     def load_note(self, file_path: Path) -> Note:
         """Load and decrypt note from disk."""
         if not file_path.exists():

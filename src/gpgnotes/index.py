@@ -210,6 +210,7 @@ class SearchIndex:
         limit: int = None,
         tag_filter: str = None,
         inbox: bool = False,
+        plain_filter: str = None,
     ) -> List[dict]:
         """
         Get metadata for all notes without decryption.
@@ -219,6 +220,7 @@ class SearchIndex:
             limit: Maximum number of results (None for all)
             tag_filter: Filter by tag (None for all notes)
             inbox: If True, only return notes without any folder tags
+            plain_filter: 'plain' for only plain notes, 'encrypted' for only encrypted
 
         Returns:
             List of dicts with keys: file_path, title, tags, created, modified, is_plain
@@ -228,9 +230,19 @@ class SearchIndex:
 
         # Add tag filter if specified
         params = []
+        where_clauses = []
         if tag_filter:
-            query += " WHERE tags MATCH ?"
+            where_clauses.append("tags MATCH ?")
             params.append(f'"{tag_filter}"')
+
+        # Add plain/encrypted filter
+        if plain_filter == "plain":
+            where_clauses.append("is_plain = 1")
+        elif plain_filter == "encrypted":
+            where_clauses.append("(is_plain = 0 OR is_plain IS NULL)")
+
+        if where_clauses:
+            query += " WHERE " + " AND ".join(where_clauses)
 
         # Add sorting
         if sort_by == "modified":

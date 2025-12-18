@@ -209,7 +209,7 @@ def _background_sync():
 
 @click.group(invoke_without_command=True)
 @click.pass_context
-@click.version_option(version="0.3.1")
+@click.version_option(version="0.3.2")
 def main(ctx):
     """GPGNotes - Encrypted note-taking with Git sync."""
     # Register exit handler for background sync
@@ -398,7 +398,8 @@ You're ready to start! Try:
 @click.option("--folder", "-f", help="Folder to organize note (adds folder:<name> tag)")
 @click.option("--template", help="Template to use")
 @click.option("--var", multiple=True, help="Template variable in key=value format")
-def new(title, tags, folder, template, var):
+@click.option("--plain", "-p", is_flag=True, help="Create as plain (unencrypted) note")
+def new(title, tags, folder, template, var, plain):
     """Create a new note, optionally from a template.
 
     Examples:
@@ -406,11 +407,12 @@ def new(title, tags, folder, template, var):
         notes new "Sprint Planning" --template meeting --var project="Backend"
         notes new "Bug Fix" --template bug
         notes new "Task List" --folder work         # Create in 'work' folder
+        notes new "Public Doc" --plain              # Create unencrypted note
     """
     config = Config()
 
-    # Check if GPG key is configured
-    if not config.get("gpg_key"):
+    # Check if GPG key is configured (only needed for encrypted notes)
+    if not plain and not config.get("gpg_key"):
         console.print("[red]Error: GPG key not configured. Run 'notes config' first.[/red]")
         sys.exit(1)
 
@@ -462,9 +464,12 @@ def new(title, tags, folder, template, var):
     # Create note
     note = Note(title=title, content=content, tags=tag_list)
 
-    # Save and get path
+    # Save and get path (plain or encrypted)
     storage = Storage(config)
-    file_path = storage.save_note(note)
+    if plain:
+        file_path = storage.save_plain_note(note)
+    else:
+        file_path = storage.save_note(note)
 
     # Now edit it
     try:
@@ -475,7 +480,10 @@ def new(title, tags, folder, template, var):
             tagger = AutoTagger()
             auto_tags = tagger.extract_tags(note.content, note.title)
             note.tags = auto_tags
-            storage.save_note(note)
+            if plain:
+                storage.save_plain_note(note)
+            else:
+                storage.save_note(note)
 
         # Index the note
         index = SearchIndex(config)
@@ -486,7 +494,8 @@ def new(title, tags, folder, template, var):
         if config.get("auto_sync"):
             _sync_in_background(config, f"Add note: {note.title}")
 
-        console.print(f"[green]✓[/green] Note created: {note.title}")
+        note_type = "plain " if plain else ""
+        console.print(f"[green]✓[/green] {note_type.capitalize()}note created: {note.title}")
         if note.tags:
             console.print(f"[blue]Tags:[/blue] {', '.join(note.tags)}")
 
@@ -791,8 +800,10 @@ def _find_note_by_title(storage: Storage, query: str) -> Optional[Path]:
 @click.option("--tag", "-t", help="Filter by tag")
 @click.option("--folder", "-f", help="Filter by folder")
 @click.option("--inbox", "-i", is_flag=True, help="Show only notes without folders")
+@click.option("--plain", is_flag=True, help="Show only plain (unencrypted) notes")
+@click.option("--encrypted", is_flag=True, help="Show only encrypted notes")
 @click.option("--no-pagination", is_flag=True, help="Disable pagination, show all results")
-def list_cmd(preview, sort, page_size, tag, folder, inbox, no_pagination):
+def list_cmd(preview, sort, page_size, tag, folder, inbox, plain, encrypted, no_pagination):
     """List all notes with optional filtering and sorting.
 
     Examples:
@@ -802,6 +813,8 @@ def list_cmd(preview, sort, page_size, tag, folder, inbox, no_pagination):
         notes list --tag work         # Filter by tag
         notes list --folder work      # Filter by folder
         notes list --inbox            # Show notes without folders (inbox)
+        notes list --plain            # Show only plain (unencrypted) notes
+        notes list --encrypted        # Show only encrypted notes
         notes list -n 10              # Show 10 items per page
         notes list --no-pagination    # Show all results at once
     """
@@ -810,22 +823,38 @@ def list_cmd(preview, sort, page_size, tag, folder, inbox, no_pagination):
 
     from .index import SearchIndex
 
+    # Check for conflicting options
+    if plain and encrypted:
+        console.print("[red]Error: Cannot use --plain and --encrypted together[/red]")
+        return
+
     config = Config()
     storage = Storage(config)
 
     # Determine effective tag filter (folder takes precedence for display message)
     effective_tag = f"folder:{folder}" if folder else tag
 
+    # Determine plain filter
+    plain_filter = None
+    if plain:
+        plain_filter = "plain"
+    elif encrypted:
+        plain_filter = "encrypted"
+
     try:
         # Use index for fast metadata retrieval (no decryption!)
         search_index = SearchIndex(config)
         notes_metadata = search_index.get_all_metadata(
-            sort_by=sort, tag_filter=effective_tag, inbox=inbox
+            sort_by=sort, tag_filter=effective_tag, inbox=inbox, plain_filter=plain_filter
         )
         search_index.close()
 
         if not notes_metadata:
-            if inbox:
+            if plain:
+                console.print("[yellow]No plain (unencrypted) notes found[/yellow]")
+            elif encrypted:
+                console.print("[yellow]No encrypted notes found[/yellow]")
+            elif inbox:
                 console.print("[yellow]No notes found in inbox (all notes are in folders)[/yellow]")
             elif folder:
                 console.print(f"[yellow]No notes found in folder '{folder}'[/yellow]")
@@ -915,7 +944,11 @@ def list_cmd(preview, sort, page_size, tag, folder, inbox, no_pagination):
 
         # Build title
         table_title = "All Notes"
-        if inbox:
+        if plain:
+            table_title = "Plain (Unencrypted) Notes"
+        elif encrypted:
+            table_title = "Encrypted Notes"
+        elif inbox:
             table_title = "Inbox (No Folder)"
         elif folder:
             table_title = f"Folder: {folder}"
@@ -1005,6 +1038,155 @@ def move(note_id, folder, unfolder):
             if config.get("auto_sync"):
                 _sync_in_background(config, f"Move note: {note.title}")
 
+    finally:
+        index.close()
+
+
+@main.command()
+@click.argument("note_id")
+@click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
+def decrypt(note_id, yes):
+    """Convert an encrypted note to plain (unencrypted).
+
+    The encrypted note will be deleted and replaced with a plain version.
+
+    Examples:
+        notes decrypt 20251218123456      # Convert to plain
+        notes decrypt 20251218123456 -y   # Skip confirmation
+    """
+    config = Config()
+    storage = Storage(config)
+    index = SearchIndex(config)
+
+    try:
+        # Find the note
+        note_path = _find_note(note_id, config)
+        if not note_path:
+            return
+
+        # Check if it's already plain
+        if storage._is_plain_file(note_path):
+            console.print("[yellow]Note is already plain (unencrypted)[/yellow]")
+            return
+
+        # Load the note
+        note = storage.load_note(note_path)
+
+        # Confirm
+        if not yes:
+            console.print(
+                Panel.fit(
+                    f"[bold yellow]Decrypt Note?[/bold yellow]\n\n"
+                    f"ID: {note.note_id}\n"
+                    f"Title: {note.title}\n\n"
+                    f"[yellow]This will remove encryption from this note.[/yellow]\n"
+                    f"[yellow]The note will be readable without GPG.[/yellow]",
+                    border_style="yellow",
+                )
+            )
+            confirm = prompt("Type 'yes' to confirm: ")
+            if confirm.lower() != "yes":
+                console.print("[yellow]Cancelled[/yellow]")
+                return
+
+        # Save as plain note
+        plain_path = storage.save_plain_note(note)
+
+        # Delete the encrypted version
+        note_path.unlink()
+
+        # Update index - remove old, add new
+        index.remove_note(note_path)
+        index.add_note(note)
+
+        # Sync if enabled
+        if config.get("auto_sync"):
+            _sync_in_background(config, f"Decrypt note: {note.title}")
+
+        console.print(f"[green]✓[/green] Note decrypted: {note.title}")
+        console.print(f"[dim]New location: {plain_path}[/dim]")
+
+    except Exception as e:
+        console.print(f"[red]Error decrypting note: {e}[/red]")
+    finally:
+        index.close()
+
+
+@main.command()
+@click.argument("note_id")
+@click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
+def encrypt(note_id, yes):
+    """Convert a plain note to encrypted.
+
+    The plain note will be deleted and replaced with an encrypted version.
+
+    Examples:
+        notes encrypt p20251218123456      # Convert to encrypted
+        notes encrypt p20251218123456 -y   # Skip confirmation
+    """
+    config = Config()
+
+    # Check GPG key
+    if not config.get("gpg_key"):
+        console.print("[red]Error: GPG key not configured. Run 'notes config' first.[/red]")
+        sys.exit(1)
+
+    storage = Storage(config)
+    index = SearchIndex(config)
+
+    try:
+        # Find the note
+        note_path = _find_note(note_id, config)
+        if not note_path:
+            return
+
+        # Check if it's already encrypted
+        if not storage._is_plain_file(note_path):
+            console.print("[yellow]Note is already encrypted[/yellow]")
+            return
+
+        # Load the note
+        note = storage.load_note(note_path)
+
+        # Confirm
+        if not yes:
+            console.print(
+                Panel.fit(
+                    f"[bold green]Encrypt Note?[/bold green]\n\n"
+                    f"ID: {note.note_id}\n"
+                    f"Title: {note.title}\n\n"
+                    f"[green]This will encrypt this note with GPG.[/green]",
+                    border_style="green",
+                )
+            )
+            confirm = prompt("Type 'yes' to confirm: ")
+            if confirm.lower() != "yes":
+                console.print("[yellow]Cancelled[/yellow]")
+                return
+
+        # Reset the is_plain flag so it gets a proper encrypted path
+        note.is_plain = False
+        note.file_path = None  # Clear old path so new one is generated
+
+        # Save as encrypted note
+        encrypted_path = storage.save_note(note)
+
+        # Delete the plain version
+        note_path.unlink()
+
+        # Update index - remove old, add new
+        index.remove_note(note_path)
+        index.add_note(note)
+
+        # Sync if enabled
+        if config.get("auto_sync"):
+            _sync_in_background(config, f"Encrypt note: {note.title}")
+
+        console.print(f"[green]✓[/green] Note encrypted: {note.title}")
+        console.print(f"[dim]New location: {encrypted_path}[/dim]")
+
+    except Exception as e:
+        console.print(f"[red]Error encrypting note: {e}[/red]")
     finally:
         index.close()
 
@@ -2685,6 +2867,8 @@ class NotesCompleter(Completer):
         "open",
         "delete",
         "move",
+        "encrypt",
+        "decrypt",
         "import",
         "clip",
         "enhance",
@@ -2703,7 +2887,7 @@ class NotesCompleter(Completer):
     ]
 
     # Commands that accept note titles as arguments
-    NOTE_COMMANDS = ["open", "delete", "enhance", "export"]
+    NOTE_COMMANDS = ["open", "delete", "enhance", "export", "encrypt", "decrypt"]
 
     def __init__(self, storage: Storage):
         self.storage = storage
@@ -2781,6 +2965,8 @@ def interactive_mode():
             "  [green]todos[/green] - List tasks from notes\n"
             "  [green]open <ID|title>[/green] - Open a note\n"
             "  [green]delete <ID>[/green] - Delete a note\n"
+            "  [green]encrypt <ID>[/green] - Encrypt a plain note\n"
+            "  [green]decrypt <ID>[/green] - Decrypt to plain note\n"
             "  [green]move <ID> -f <folder>[/green] - Move to folder\n"
             "  [green]import <file|URL>[/green] - Import file/URL as note\n"
             "  [green]clip <URL>[/green] - Clip web page as note\n"
@@ -2829,8 +3015,10 @@ def interactive_mode():
                         '  [green]new "Title"[/green] - Create new note\n'
                         '  [green]new "Title" --template bug[/green] - Create from template\n'
                         '  [green]new "Title" -f work[/green] - Create in folder\n'
-                        "  [green]list[/green] - List all notes (--preview, --sort, --tag, --folder, --inbox)\n"
+                        '  [green]new "Title" --plain[/green] - Create plain (unencrypted) note\n'
+                        "  [green]list[/green] - List all notes (--plain, --encrypted, --inbox, --folder)\n"
                         "  [green]list -f work[/green] - List notes in folder\n"
+                        "  [green]list --plain[/green] - List plain notes only\n"
                         "  [green]inbox[/green] - List notes without folders\n"
                         "  [green]recent[/green] - Show recent notes\n"
                         "  [green]folders[/green] - List all folders\n"
@@ -2841,6 +3029,8 @@ def interactive_mode():
                         "  [green]move <ID> -u <folder>[/green] - Remove from folder\n"
                         "  [green]open <ID|title>[/green] - Open a note by ID or title\n"
                         "  [green]delete <ID>[/green] - Delete a note by ID\n"
+                        "  [green]encrypt <ID>[/green] - Convert plain note to encrypted\n"
+                        "  [green]decrypt <ID>[/green] - Convert encrypted note to plain\n"
                         "  [green]import <file|URL>[/green] - Import file or URL as note\n"
                         "  [green]clip <URL>[/green] - Clip web page as note\n"
                         "  [green]enhance <ID>[/green] - Enhance note with AI\n"
@@ -2869,6 +3059,7 @@ def interactive_mode():
                 template = None
                 tags = None
                 folder_opt = None
+                plain_opt = False
                 if args:
                     import shlex
 
@@ -2894,6 +3085,9 @@ def interactive_mode():
                         elif part in ["-f", "--folder"] and i + 1 < len(parts):
                             folder_opt = parts[i + 1]
                             i += 2
+                        elif part in ["-p", "--plain"]:
+                            plain_opt = True
+                            i += 1
                         elif not part.startswith("-") and title is None:
                             title = part
                             i += 1
@@ -2901,7 +3095,13 @@ def interactive_mode():
                             i += 1
 
                 ctx.invoke(
-                    new, title=title, tags=tags, folder=folder_opt, template=template, var=()
+                    new,
+                    title=title,
+                    tags=tags,
+                    folder=folder_opt,
+                    template=template,
+                    var=(),
+                    plain=plain_opt,
                 )
             elif command == "list":
                 ctx = click.Context(list_cmd)
@@ -2909,6 +3109,8 @@ def interactive_mode():
                 folder_opt = None
                 tag_opt = None
                 inbox_opt = False
+                plain_opt = False
+                encrypted_opt = False
                 if args:
                     import shlex
 
@@ -2929,6 +3131,12 @@ def interactive_mode():
                         elif part in ["-i", "--inbox"]:
                             inbox_opt = True
                             i += 1
+                        elif part == "--plain":
+                            plain_opt = True
+                            i += 1
+                        elif part == "--encrypted":
+                            encrypted_opt = True
+                            i += 1
                         else:
                             i += 1
 
@@ -2940,6 +3148,8 @@ def interactive_mode():
                     tag=tag_opt,
                     folder=folder_opt,
                     inbox=inbox_opt,
+                    plain=plain_opt,
+                    encrypted=encrypted_opt,
                     no_pagination=False,
                 )
             elif command == "folders":
@@ -3043,6 +3253,12 @@ def interactive_mode():
             elif command == "delete" and args:
                 ctx = click.Context(delete)
                 ctx.invoke(delete, note_id=args, yes=False)
+            elif command == "encrypt" and args:
+                ctx = click.Context(encrypt)
+                ctx.invoke(encrypt, note_id=args, yes=False)
+            elif command == "decrypt" and args:
+                ctx = click.Context(decrypt)
+                ctx.invoke(decrypt, note_id=args, yes=False)
             elif command == "import" and args:
                 # Import supports file path or URL as argument
                 if args.startswith(("http://", "https://")):
