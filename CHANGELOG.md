@@ -11,10 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Duplicate ID Conflict**: Plain exports now use a 'p' suffix in their IDs to avoid conflicts with encrypted notes (e.g., encrypted: `20251217191420`, plain: `20251217191420p`). This eliminates ambiguity when opening, deleting, or managing notes.
 - **Import Error**: Fixed `ModuleNotFoundError` for `git_sync` module in export command.
+- **ID Column Width**: Increased ID column width from 14 to 17 characters to display full plain IDs with 'p' suffix without truncation.
 
 ### Changed
 
 - **Plain Export Naming**: Plain exports created with `notes export --plain` now have a 'p' suffix in the filename (e.g., `20251217191420p.md` instead of `20251217191420.md`)
+- **List Table Layout**: Optimized column widths for 80-column terminals (ID: 17, Type: 3, Title: 29, Tags: 15, Modified: 11)
+- **Date Format**: Modified date displays as `YYYY-MM-DD` instead of `YYYY-MM-DD HH:MM` to save space
 
 ## [0.2.10] - 2025-12-17
 

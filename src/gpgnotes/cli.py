@@ -807,13 +807,13 @@ def list_cmd(preview, sort, page_size, tag, no_pagination):
         def build_table(notes_page, table_title):
             """Build a table for a page of notes."""
             table = Table(title=table_title)
-            table.add_column("ID", style="cyan", width=14, no_wrap=True)
-            table.add_column("Type", width=8, no_wrap=True)
-            title_width = 25 if preview else 35
-            tags_width = 15 if preview else 20
+            table.add_column("ID", style="cyan", width=17, no_wrap=True)
+            table.add_column("T", width=3, no_wrap=True)  # Just P or E
+            title_width = 22 if preview else 29
+            tags_width = 12 if preview else 15
             table.add_column("Title", style="green", width=title_width, no_wrap=True)
             table.add_column("Tags", style="blue", width=tags_width, no_wrap=True)
-            table.add_column("Modified", style="yellow", width=16, no_wrap=True)
+            table.add_column("Modified", style="yellow", width=11, no_wrap=True)
             if preview:
                 table.add_column("Preview", style="dim", width=35, no_wrap=True)
 
@@ -843,7 +843,7 @@ def list_cmd(preview, sort, page_size, tag, no_pagination):
                     type_indicator,
                     title_text,
                     tags_text,
-                    modified_dt.strftime("%Y-%m-%d %H:%M"),
+                    modified_dt.strftime("%Y-%m-%d"),
                 ]
 
                 if preview:
