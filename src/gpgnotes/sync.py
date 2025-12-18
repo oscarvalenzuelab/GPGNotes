@@ -22,6 +22,26 @@ class GitSync:
             self.repo = git.Repo(self.notes_dir)
             # Configure merge strategy for existing repo
             self._configure_git()
+
+            # Ensure remote is configured even for existing repos
+            remote_url = self.config.get("git_remote")
+            if remote_url:
+                try:
+                    # Check if remote exists
+                    if not self.repo.remotes:
+                        # No remotes, add it
+                        self.repo.create_remote("origin", remote_url)
+                    elif "origin" not in [r.name for r in self.repo.remotes]:
+                        # Has remotes but no origin
+                        self.repo.create_remote("origin", remote_url)
+                    else:
+                        # Origin exists, ensure URL is correct
+                        origin = self.repo.remotes.origin
+                        if origin.url != remote_url:
+                            origin.set_url(remote_url)
+                except Exception as e:
+                    print(f"Warning: Could not configure remote: {e}")
+
         except git.InvalidGitRepositoryError:
             # Initialize new repo
             self.repo = git.Repo.init(self.notes_dir)
@@ -327,7 +347,7 @@ class GitSync:
         self.init_repo()
 
         # Commit local changes FIRST (before pull to avoid conflicts)
-        committed = self.commit(message)
+        self.commit(message)
 
         # Pull from remote
         if self.has_remote():
@@ -335,12 +355,10 @@ class GitSync:
             if not pull_success:
                 print("Warning: Pull failed, but local changes are committed")
                 # Still try to push our commits
-                if committed:
-                    return self.push()
-                return False
+                return self.push()
 
-        # Push if we have remote and committed something
-        if self.has_remote() and committed:
+        # Push if we have remote and (committed something OR have unpushed commits)
+        if self.has_remote():
             return self.push()
 
         return True
