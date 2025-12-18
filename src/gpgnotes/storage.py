@@ -68,11 +68,30 @@ class Storage:
         try:
             note = Note.from_markdown(content, file_path)
             note.is_plain = True
+
+            # If title is "Untitled", try to extract from content or use filename
+            if note.title == "Untitled":
+                # Try to extract first H1 heading
+                for line in content.split("\n"):
+                    line = line.strip()
+                    if line.startswith("# "):
+                        note.title = line[2:].strip()
+                        break
+                else:
+                    # No H1 found, use filename
+                    note.title = file_path.stem
+
             return note
         except Exception:
             # If parsing fails, create a simple note from the content
-            # Use filename as title
+            # Try to extract title from first H1 heading or use filename
             title = file_path.stem
+            for line in content.split("\n"):
+                line = line.strip()
+                if line.startswith("# "):
+                    title = line[2:].strip()
+                    break
+
             note = Note(title=title, content=content, file_path=file_path)
             note.is_plain = True
             return note

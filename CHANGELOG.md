@@ -5,6 +5,19 @@ All notable changes to GPGNotes will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.10] - 2025-12-17
+
+### Fixed
+
+- **Plain Note Title Extraction**: Plain (non-encrypted) notes now correctly display their titles in `notes list`. The system now extracts titles from the first H1 heading (`# Title`) in plain files, or falls back to the filename if no H1 heading is found.
+
+### Changed
+
+- **Type Indicators**: Replaced emoji type indicators (📄/🔒) with simple text indicators in `notes list`:
+  - `P` for plain (unencrypted) files
+  - `E` for encrypted files
+- **List Table Layout**: Adjusted column widths for better fit on 80-column terminals (ID: 14, Type: 8, Title: 35, Tags: 20, Modified: 16)
+
 ## [0.2.8] - 2025-12-17
 
 ### Added
@@ -384,6 +397,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sync requires Git remote to be configured manually
 - Initial sync from existing remote requires `--allow-unrelated-histories` (handled automatically)
 
+[0.2.10]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.2.10
 [0.2.8]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.2.8
 [0.2.2]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.2.2
 [0.2.1]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.2.1
