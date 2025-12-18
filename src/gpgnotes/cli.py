@@ -674,8 +674,11 @@ def open(note_id, last):
             file_path, _ = notes_with_dates[0]
 
         elif note_id:
-            # Check if it's a valid ID format
-            if note_id.isdigit() and len(note_id) == 14:
+            # Check if it's a valid ID format (14 digits or 14 digits + 'p')
+            is_encrypted_id = note_id.isdigit() and len(note_id) == 14
+            is_plain_id = len(note_id) == 15 and note_id[:-1].isdigit() and note_id.endswith("p")
+
+            if is_encrypted_id or is_plain_id:
                 # Find note by ID
                 try:
                     file_path = storage.find_by_id(note_id)
@@ -950,8 +953,11 @@ def delete(note_id, yes):
     index = SearchIndex(config)
 
     try:
-        # Validate ID format
-        if not (note_id.isdigit() and len(note_id) == 14):
+        # Validate ID format (14 digits or 14 digits + 'p')
+        is_encrypted_id = note_id.isdigit() and len(note_id) == 14
+        is_plain_id = len(note_id) == 15 and note_id[:-1].isdigit() and note_id.endswith("p")
+
+        if not (is_encrypted_id or is_plain_id):
             console.print(f"[red]Error: Invalid note ID '{note_id}'[/red]")
             console.print("[yellow]Tip: Use 'notes search <query>' to find note IDs[/yellow]")
             return
@@ -1292,8 +1298,11 @@ def export(note_id, format, output, plain):
     storage = Storage(config)
 
     try:
-        # Validate ID format
-        if not (note_id.isdigit() and len(note_id) == 14):
+        # Validate ID format (14 digits or 14 digits + 'p')
+        is_encrypted_id = note_id.isdigit() and len(note_id) == 14
+        is_plain_id = len(note_id) == 15 and note_id[:-1].isdigit() and note_id.endswith("p")
+
+        if not (is_encrypted_id or is_plain_id):
             console.print(f"[red]Error: Invalid note ID '{note_id}'[/red]")
             console.print("[yellow]Tip: Use 'notes search <query>' to find note IDs[/yellow]")
             return
@@ -1555,8 +1564,11 @@ def enhance(note_id, instructions, quick):
             )
             return
 
-        # Validate ID format
-        if not (note_id.isdigit() and len(note_id) == 14):
+        # Validate ID format (14 digits or 14 digits + 'p')
+        is_encrypted_id = note_id.isdigit() and len(note_id) == 14
+        is_plain_id = len(note_id) == 15 and note_id[:-1].isdigit() and note_id.endswith("p")
+
+        if not (is_encrypted_id or is_plain_id):
             console.print(f"[red]Error: Invalid note ID '{note_id}'[/red]")
             console.print("[yellow]Tip: Use 'notes search <query>' to find note IDs[/yellow]")
             return

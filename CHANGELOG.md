@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Duplicate ID Conflict**: Plain exports now use a 'p' suffix in their IDs to avoid conflicts with encrypted notes (e.g., encrypted: `20251217191420`, plain: `20251217191420p`). This eliminates ambiguity when opening, deleting, or managing notes.
 - **Import Error**: Fixed `ModuleNotFoundError` for `git_sync` module in export command.
 - **ID Column Width**: Increased ID column width from 14 to 17 characters to display full plain IDs with 'p' suffix without truncation.
+- **Plain ID Validation**: Fixed `open`, `delete`, `export`, and `enhance` commands to recognize plain IDs with 'p' suffix (15 characters ending in 'p').
 
 ### Changed
 
