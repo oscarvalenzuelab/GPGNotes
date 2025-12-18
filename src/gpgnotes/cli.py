@@ -1063,9 +1063,7 @@ def todos(show_all, note_id, folder):
                 console.print("[yellow]No tasks found in specified note[/yellow]")
             else:
                 console.print("[yellow]No tasks found[/yellow]")
-            console.print(
-                "\n[dim]Tip: Add checkboxes to notes: - [ ] Your task here[/dim]"
-            )
+            console.print("\n[dim]Tip: Add checkboxes to notes: - [ ] Your task here[/dim]")
             return
 
         # Get counts
@@ -1103,9 +1101,7 @@ def todos(show_all, note_id, folder):
 
             console.print()
 
-        console.print(
-            "[dim]Tip: Edit notes directly to toggle checkboxes[/dim]"
-        )
+        console.print("[dim]Tip: Edit notes directly to toggle checkboxes[/dim]")
 
     finally:
         index.close()
@@ -2872,7 +2868,9 @@ def interactive_mode():
                         else:
                             i += 1
 
-                ctx.invoke(new, title=title, tags=tags, folder=folder_opt, template=template, var=())
+                ctx.invoke(
+                    new, title=title, tags=tags, folder=folder_opt, template=template, var=()
+                )
             elif command == "list":
                 ctx = click.Context(list_cmd)
                 # Parse options for list command
@@ -2970,7 +2968,9 @@ def interactive_mode():
                             i += 1
 
                     if not note_id:
-                        console.print("[yellow]Usage: move <ID> -f <folder> or -u <folder>[/yellow]")
+                        console.print(
+                            "[yellow]Usage: move <ID> -f <folder> or -u <folder>[/yellow]"
+                        )
                     elif not folder_opt and not unfolder_opt:
                         console.print("[red]Error: Specify -f <folder> or -u <folder>[/red]")
                     else:
@@ -3093,7 +3093,14 @@ def interactive_mode():
             else:
                 # Treat as search query
                 ctx = click.Context(search)
-                ctx.invoke(search, query=user_input, tag=None, folder=None, page_size=20, no_pagination=False)
+                ctx.invoke(
+                    search,
+                    query=user_input,
+                    tag=None,
+                    folder=None,
+                    page_size=20,
+                    no_pagination=False,
+                )
 
         except KeyboardInterrupt:
             break
