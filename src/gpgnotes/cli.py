@@ -1286,7 +1286,7 @@ def export(note_id, format, output, plain):
         export_rtf,
         export_text,
     )
-    from .git_sync import GitSync
+    from .sync import GitSync
 
     config = Config()
     storage = Storage(config)
@@ -1327,7 +1327,9 @@ def export(note_id, format, output, plain):
             # Use note's relative path (YYYY/MM/filename)
             rel_path = file_path.relative_to(config.notes_dir)
             # Change extension from .md.gpg to the export format
-            plain_file = plain_dir / rel_path.with_suffix("").with_suffix(ext)
+            # Add "p" suffix to the filename to distinguish from encrypted version
+            base_name = rel_path.stem.replace(".md", "")  # Remove .md from .md.gpg
+            plain_file = plain_dir / rel_path.parent / f"{base_name}p{ext}"
             plain_file.parent.mkdir(parents=True, exist_ok=True)
             output = str(plain_file)
 

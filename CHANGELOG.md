@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Plain Note Title Extraction**: Plain (non-encrypted) notes now correctly display their titles in `notes list`. The system now extracts titles from the first H1 heading (`# Title`) in plain files, or falls back to the filename if no H1 heading is found.
+- **Duplicate ID Conflict**: Plain exports now use a 'p' suffix in their IDs to avoid conflicts with encrypted notes (e.g., encrypted: `20251217191420`, plain: `20251217191420p`). This eliminates ambiguity when opening, deleting, or managing notes.
 
 ### Changed
 
@@ -17,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `P` for plain (unencrypted) files
   - `E` for encrypted files
 - **List Table Layout**: Adjusted column widths for better fit on 80-column terminals (ID: 14, Type: 8, Title: 35, Tags: 20, Modified: 16)
+- **Plain Export Naming**: Plain exports created with `notes export --plain` now have a 'p' suffix in the filename (e.g., `20251217191420p.md` instead of `20251217191420.md`)
 
 ## [0.2.8] - 2025-12-17
 
