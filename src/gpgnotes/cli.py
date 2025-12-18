@@ -808,7 +808,8 @@ def list_cmd(preview, sort, page_size, tag, no_pagination):
             """Build a table for a page of notes."""
             table = Table(title=table_title)
             table.add_column("ID", style="cyan", width=14, no_wrap=True)
-            title_width = 30 if preview else 45
+            table.add_column("Type", style="magenta", width=5, no_wrap=True)
+            title_width = 28 if preview else 40
             tags_width = 18 if preview else 25
             table.add_column("Title", style="green", width=title_width, no_wrap=True)
             table.add_column("Tags", style="blue", width=tags_width, no_wrap=True)
@@ -824,6 +825,10 @@ def list_cmd(preview, sort, page_size, tag, no_pagination):
                 # Parse datetime
                 modified_dt = datetime.fromisoformat(note_meta["modified"])
 
+                # Determine type indicator
+                is_plain = note_meta.get("is_plain", False)
+                type_indicator = "📄" if is_plain else "🔒"
+
                 # Truncate title and tags to fit columns
                 title_text = note_meta["title"]
                 if len(title_text) > title_width - 3:
@@ -835,6 +840,7 @@ def list_cmd(preview, sort, page_size, tag, no_pagination):
 
                 row = [
                     note_id,
+                    type_indicator,
                     title_text,
                     tags_text,
                     modified_dt.strftime("%Y-%m-%d %H:%M"),
@@ -1012,12 +1018,12 @@ def sync():
         if result:
             console.print("[green]✓[/green] Notes synced successfully")
 
-            # Rebuild index to include any pulled notes
+            # Rebuild index to include any pulled notes (including plain files)
             with console.status("[bold blue]Rebuilding index..."):
                 storage = Storage(config)
                 index = SearchIndex(config)
                 notes = []
-                for file_path in storage.list_notes():
+                for file_path in storage.list_notes(include_plain=True):
                     try:
                         note = storage.load_note(file_path)
                         notes.append(note)
@@ -1222,14 +1228,15 @@ Secrets file: {cfg._get_secrets_path()}
 
 @main.command()
 def reindex():
-    """Rebuild search index from all notes."""
+    """Rebuild search index from all notes (including plain files)."""
     config = Config()
     storage = Storage(config)
     index = SearchIndex(config)
 
     with console.status("[bold blue]Rebuilding index..."):
         notes = []
-        for file_path in storage.list_notes():
+        # Include both encrypted and plain files
+        for file_path in storage.list_notes(include_plain=True):
             try:
                 note = storage.load_note(file_path)
                 notes.append(note)
@@ -1279,6 +1286,7 @@ def export(note_id, format, output, plain):
         export_rtf,
         export_text,
     )
+    from .git_sync import GitSync
 
     config = Config()
     storage = Storage(config)
@@ -1344,12 +1352,22 @@ def export(note_id, format, output, plain):
             with console.status("[bold blue]Exporting to PDF..."):
                 export_pdf(note, output_path)
             console.print(f"[green]✓[/green] Exported to: {output_path}")
+            # Sync if exported to plain folder
+            if plain and config.get("auto_sync") and config.get("git_remote"):
+                with console.status("[bold blue]Syncing changes..."):
+                    git_sync = GitSync(config)
+                    git_sync.sync(f"Export note to plain: {note.title}")
             return
         elif format == "docx":
             output_path = Path(output).expanduser()
             with console.status("[bold blue]Exporting to DOCX..."):
                 export_docx(note, output_path)
             console.print(f"[green]✓[/green] Exported to: {output_path}")
+            # Sync if exported to plain folder
+            if plain and config.get("auto_sync") and config.get("git_remote"):
+                with console.status("[bold blue]Syncing changes..."):
+                    git_sync = GitSync(config)
+                    git_sync.sync(f"Export note to plain: {note.title}")
             return
 
         # Output to file or stdout (for text-based formats)
@@ -1357,6 +1375,11 @@ def export(note_id, format, output, plain):
             output_path = Path(output).expanduser()
             output_path.write_text(content, encoding="utf-8")
             console.print(f"[green]✓[/green] Exported to: {output_path}")
+            # Sync if exported to plain folder
+            if plain and config.get("auto_sync") and config.get("git_remote"):
+                with console.status("[bold blue]Syncing changes..."):
+                    git_sync = GitSync(config)
+                    git_sync.sync(f"Export note to plain: {note.title}")
         else:
             console.print(content)
 

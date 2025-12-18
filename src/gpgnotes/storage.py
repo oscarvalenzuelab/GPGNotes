@@ -18,6 +18,7 @@ class Storage:
         """Initialize storage."""
         self.config = config
         self.notes_dir = config.notes_dir
+        self.plain_dir = config.notes_dir / "plain"
         self.encryption = Encryption(config.get("gpg_key"))
         self.config.ensure_dirs()
 
@@ -45,21 +46,84 @@ class Storage:
         if not file_path.exists():
             raise FileNotFoundError(f"Note not found: {file_path}")
 
-        # Decrypt and parse
+        # Check if it's a plain file
+        if self._is_plain_file(file_path):
+            return self.load_plain_note(file_path)
+
+        # Decrypt and parse encrypted note
         content = self.encryption.decrypt(file_path)
         note = Note.from_markdown(content, file_path)
 
         return note
 
-    def list_notes(self) -> List[Path]:
-        """List all note files."""
+    def load_plain_note(self, file_path: Path) -> Note:
+        """Load plain (non-encrypted) note from disk."""
+        if not file_path.exists():
+            raise FileNotFoundError(f"Note not found: {file_path}")
+
+        # Read plain file content
+        content = file_path.read_text(encoding="utf-8")
+
+        # Try to parse as markdown with frontmatter
+        try:
+            note = Note.from_markdown(content, file_path)
+            note.is_plain = True
+            return note
+        except Exception:
+            # If parsing fails, create a simple note from the content
+            # Use filename as title
+            title = file_path.stem
+            note = Note(
+                title=title,
+                content=content,
+                file_path=file_path
+            )
+            note.is_plain = True
+            return note
+
+    def _is_plain_file(self, file_path: Path) -> bool:
+        """Check if a file is a plain (non-encrypted) file."""
+        try:
+            # Check if file is in plain directory
+            file_path.relative_to(self.plain_dir)
+            return True
+        except ValueError:
+            return False
+
+    def list_notes(self, include_plain: bool = False) -> List[Path]:
+        """List all note files.
+
+        Args:
+            include_plain: If True, include plain (non-encrypted) files
+
+        Returns:
+            List of file paths sorted by modification time (newest first)
+        """
         if not self.notes_dir.exists():
             return []
 
-        # Find all .gpg files
-        return sorted(
-            self.notes_dir.rglob("*.md.gpg"), key=lambda p: p.stat().st_mtime, reverse=True
-        )
+        files = []
+
+        # Find all .gpg files (encrypted notes)
+        files.extend(self.notes_dir.rglob("*.md.gpg"))
+
+        # Optionally include plain files
+        if include_plain and self.plain_dir.exists():
+            files.extend(self.list_plain_files())
+
+        return sorted(files, key=lambda p: p.stat().st_mtime, reverse=True)
+
+    def list_plain_files(self) -> List[Path]:
+        """List all plain (non-encrypted) files."""
+        if not self.plain_dir.exists():
+            return []
+
+        # Find all supported plain text formats
+        plain_files = []
+        for pattern in ["*.md", "*.txt", "*.html", "*.json"]:
+            plain_files.extend(self.plain_dir.rglob(pattern))
+
+        return plain_files
 
     def _build_editor_command(self, editor: str, file_path: str) -> list[str]:
         """
@@ -121,6 +185,10 @@ class Storage:
 
     def edit_note(self, file_path: Path) -> Note:
         """Edit note using configured editor."""
+        # Check if it's a plain file
+        if self._is_plain_file(file_path):
+            return self.edit_plain_note(file_path)
+
         # Decrypt to temp file
         temp_path = self.encryption.decrypt_to_temp(file_path)
 
@@ -141,6 +209,19 @@ class Storage:
             if temp_path.exists():
                 os.unlink(temp_path)
 
+    def edit_plain_note(self, file_path: Path) -> Note:
+        """Edit plain (non-encrypted) note using configured editor."""
+        if not file_path.exists():
+            raise FileNotFoundError(f"Note not found: {file_path}")
+
+        # Open in editor directly (no encryption/decryption needed)
+        editor = self.config.get("editor", "nano")
+        editor_cmd = self._build_editor_command(editor, str(file_path))
+        subprocess.run(editor_cmd, check=True)
+
+        # Load and return updated note
+        return self.load_plain_note(file_path)
+
     def delete_note(self, file_path: Path) -> bool:
         """Delete note file."""
         if file_path.exists():
@@ -150,17 +231,25 @@ class Storage:
 
     def find_by_id(self, note_id: str) -> Path:
         """Find note file by ID (timestamp)."""
-        # Search for file with this ID in all directories
-        for file_path in self.list_notes():
+        # Search for file with this ID in all directories (including plain)
+        for file_path in self.list_notes(include_plain=True):
             if Note.extract_id_from_path(file_path) == note_id:
                 return file_path
         raise FileNotFoundError(f"Note with ID {note_id} not found")
 
-    def search_notes(self, query: str) -> List[Note]:
-        """Simple content search (will be replaced by index search)."""
+    def search_notes(self, query: str, include_plain: bool = True) -> List[Note]:
+        """Simple content search (will be replaced by index search).
+
+        Args:
+            query: Search query string
+            include_plain: If True, include plain files in search
+
+        Returns:
+            List of notes matching the query
+        """
         results = []
 
-        for file_path in self.list_notes():
+        for file_path in self.list_notes(include_plain=include_plain):
             try:
                 note = self.load_note(file_path)
                 if (
@@ -170,7 +259,7 @@ class Storage:
                 ):
                     results.append(note)
             except Exception:
-                # Skip files that can't be decrypted
+                # Skip files that can't be decrypted/loaded
                 continue
 
         return results

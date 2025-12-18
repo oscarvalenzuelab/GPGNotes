@@ -18,6 +18,7 @@ class Note:
         created: Optional[datetime] = None,
         modified: Optional[datetime] = None,
         file_path: Optional[Path] = None,
+        is_plain: bool = False,
     ):
         """Initialize a note."""
         self.title = title
@@ -26,6 +27,7 @@ class Note:
         self.created = created or datetime.now()
         self.modified = modified or datetime.now()
         self.file_path = file_path
+        self.is_plain = is_plain
 
     @classmethod
     def from_markdown(cls, content: str, file_path: Optional[Path] = None) -> "Note":
