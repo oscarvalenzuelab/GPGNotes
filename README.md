@@ -23,6 +23,7 @@ A CLI note-taking tool with GPG encryption, automatic tagging, full-text search,
 - **Pagination** - Interactive pagination for list and search results
 - **AI Enhancement** - Optional LLM-powered note refinement ([docs](docs/ai-enhancement.md))
 - **Import/Export** - Support for PDF, DOCX, RTF formats ([docs](docs/import-export.md))
+- **TUI Mode** - Full-screen text user interface for browsing and managing notes
 
 ## Installation
 
@@ -43,6 +44,7 @@ With optional dependencies:
 ```bash
 pip install gpgnotes[llm]      # AI enhancement
 pip install gpgnotes[import]   # PDF/DOCX import/export
+pip install gpgnotes[tui]      # Full-screen TUI interface
 ```
 
 ### Install from source
@@ -133,6 +135,7 @@ notes sync
 | `notes import <url>` | Import from URL (web clipper) |
 | `notes clip <url>` | Web clipper shortcut |
 | `notes export <id>` | Export note ([docs](docs/import-export.md)) |
+| `notes tui` | Launch full-screen TUI interface |
 
 ### Interactive Mode
 
@@ -140,6 +143,16 @@ Run `notes` without arguments for interactive mode with:
 - Tab completion for note titles
 - Command history (Up/Down arrows)
 - Quick search by typing
+
+### TUI Mode
+
+Run `notes tui` for a full-screen terminal interface with:
+- Split-pane view with folders, notes list, and preview
+- Keyboard navigation (n=new, e=edit, d=delete, s=search, y=sync, r=refresh, q=quit)
+- Auto-sync on launch to cache GPG passphrase
+- Decrypted note preview after authentication
+
+Requires: `pip install gpgnotes[tui]`
 
 ## Security
 

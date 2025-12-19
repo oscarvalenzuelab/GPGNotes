@@ -62,11 +62,7 @@ class TagsPanel(Vertical):
         yield Static("🏷️ TAGS", classes="panel-title")
         yield ListView(id="tags-list")
 
-    def on_mount(self) -> None:
-        """Load tags on mount."""
-        self.refresh_tags()
-
-    def refresh_tags(self) -> None:
+    async def refresh_tags(self) -> None:
         """Refresh the tags list."""
         index = SearchIndex(self.config)
         try:
@@ -82,7 +78,7 @@ class TagsPanel(Vertical):
             index.close()
 
         list_view = self.query_one("#tags-list", ListView)
-        list_view.clear()
+        await list_view.clear()
 
         # Sort by count (descending) then name
         sorted_tags = sorted(self._tags.items(), key=lambda x: (-x[1], x[0]))

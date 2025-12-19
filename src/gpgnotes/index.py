@@ -147,11 +147,11 @@ class SearchIndex:
 
         self.conn.commit()
 
-    def search(self, query: str, limit: int = 50) -> List[Tuple[str, float]]:
+    def search(self, query: str, limit: int = 50) -> List[Tuple[str, str, str]]:
         """
         Search notes using FTS5.
 
-        Returns list of (file_path, rank) tuples.
+        Returns list of (file_path, title, modified) tuples.
         """
         # Sanitize query for FTS5 by escaping special characters
         # Wrap in quotes to make it a phrase search and avoid syntax errors
@@ -160,7 +160,7 @@ class SearchIndex:
 
         cursor = self.conn.execute(
             """
-            SELECT file_path, rank
+            SELECT file_path, title, modified, rank
             FROM notes_fts
             WHERE notes_fts MATCH ?
             ORDER BY rank
@@ -169,7 +169,7 @@ class SearchIndex:
             (fts_query, limit),
         )
 
-        return [(row["file_path"], row["rank"]) for row in cursor]
+        return [(row["file_path"], row["title"], row["modified"]) for row in cursor]
 
     def search_by_tag(self, tag: str, limit: int = 50) -> List[str]:
         """Search notes by tag."""

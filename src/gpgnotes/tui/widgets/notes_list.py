@@ -83,11 +83,7 @@ class NotesListPanel(Vertical):
         yield Static("📋 NOTES", classes="panel-title")
         yield ListView(id="notes-list")
 
-    def on_mount(self) -> None:
-        """Load notes on mount."""
-        self.refresh_notes()
-
-    def refresh_notes(self) -> None:
+    async def refresh_notes(self) -> None:
         """Refresh the notes list."""
         index = SearchIndex(self.config)
         try:
@@ -109,7 +105,7 @@ class NotesListPanel(Vertical):
 
         self._notes_by_id = {}
         list_view = self.query_one("#notes-list", ListView)
-        list_view.clear()
+        await list_view.clear()
 
         for note_meta in self._notes:
             note_id = self._extract_note_id(note_meta["file_path"])
@@ -150,27 +146,34 @@ class NotesListPanel(Vertical):
             name = name[:-3]
         return name
 
-    def filter_by_folder(self, folder_name: str) -> None:
+    async def filter_by_folder(self, folder_name: str) -> None:
         """Filter notes by folder."""
         self._filter_type = "folder" if folder_name else None
         self._current_filter = folder_name if folder_name else None
-        self.refresh_notes()
+        await self.refresh_notes()
 
-    def filter_by_tag(self, tag_name: str) -> None:
+    async def filter_by_tag(self, tag_name: str) -> None:
         """Filter notes by tag."""
         self._filter_type = "tag" if tag_name else None
         self._current_filter = tag_name if tag_name else None
-        self.refresh_notes()
+        await self.refresh_notes()
 
-    def clear_filter(self) -> None:
+    async def clear_filter(self) -> None:
         """Clear any active filter."""
         self._filter_type = None
         self._current_filter = None
-        self.refresh_notes()
+        await self.refresh_notes()
 
     def get_note_path(self, note_id: str) -> Optional[Path]:
         """Get the file path for a note ID."""
         return self._notes_by_id.get(note_id)
+
+    def get_note_metadata(self, note_id: str) -> Optional[dict]:
+        """Get metadata for a note by ID (from index, no decryption)."""
+        for note_meta in self._notes:
+            if self._extract_note_id(note_meta["file_path"]) == note_id:
+                return note_meta
+        return None
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         """Handle note selection."""

@@ -56,10 +56,10 @@ class GPGNotesApp(App):
         )
         yield Footer()
 
-    def on_mount(self) -> None:
+    async def on_mount(self) -> None:
         """Initialize app on mount."""
         self.title = f"GPGNotes v{self._get_version()}"
-        self.refresh_notes()
+        await self.refresh_notes()
 
     def _get_version(self) -> str:
         """Get the app version."""
@@ -70,16 +70,16 @@ class GPGNotesApp(App):
         except ImportError:
             return "0.0.0"
 
-    def refresh_notes(self) -> None:
+    async def refresh_notes(self) -> None:
         """Refresh the notes list."""
         notes_list = self.query_one("#notes-list", NotesListPanel)
-        notes_list.refresh_notes()
+        await notes_list.refresh_notes()
 
         folders = self.query_one("#folders", FoldersPanel)
-        folders.refresh_folders()
+        await folders.refresh_folders()
 
         tags = self.query_one("#tags", TagsPanel)
-        tags.refresh_tags()
+        await tags.refresh_tags()
 
     def action_new_note(self) -> None:
         """Create a new note."""
@@ -87,20 +87,20 @@ class GPGNotesApp(App):
 
         self.push_screen(NewNoteDialog(), self._on_new_note_result)
 
-    def _on_new_note_result(self, result: str | None) -> None:
+    async def _on_new_note_result(self, result: str | None) -> None:
         """Handle new note dialog result."""
         if result:
-            self.refresh_notes()
+            await self.refresh_notes()
             self.notify(f"Created: {result}", title="Note Created")
 
-    def action_edit_note(self) -> None:
+    async def action_edit_note(self) -> None:
         """Edit the selected note."""
         if self._selected_note_id:
-            self._edit_note(self._selected_note_id)
+            await self._edit_note(self._selected_note_id)
         else:
             self.notify("No note selected", severity="warning")
 
-    def _edit_note(self, note_id: str) -> None:
+    async def _edit_note(self, note_id: str) -> None:
         """Edit a note by ID."""
 
         from .widgets.notes_list import NotesListPanel
@@ -116,8 +116,9 @@ class GPGNotesApp(App):
                 except Exception as e:
                     self.notify(f"Error editing: {e}", severity="error")
 
-            self.refresh_notes()
-            self._update_preview(note_id)
+            await self.refresh_notes()
+            # After editing, GPG passphrase should be cached, so load full content
+            self._update_preview_full(note_id, note_path)
 
     def action_delete_note(self) -> None:
         """Delete the selected note."""
@@ -131,7 +132,7 @@ class GPGNotesApp(App):
         else:
             self.notify("No note selected", severity="warning")
 
-    def _on_delete_confirm(self, confirmed: bool) -> None:
+    async def _on_delete_confirm(self, confirmed: bool) -> None:
         """Handle delete confirmation."""
         if confirmed and self._selected_note_id:
             notes_list = self.query_one("#notes-list", NotesListPanel)
@@ -143,7 +144,7 @@ class GPGNotesApp(App):
                     self.index.remove_note(note_path)
                     self.notify("Note deleted", title="Deleted")
                     self._selected_note_id = None
-                    self.refresh_notes()
+                    await self.refresh_notes()
                     self._clear_preview()
                 except Exception as e:
                     self.notify(f"Error deleting: {e}", severity="error")
@@ -159,22 +160,22 @@ class GPGNotesApp(App):
         if note_id:
             self._select_note(note_id)
 
-    def action_sync(self) -> None:
+    async def action_sync(self) -> None:
         """Sync with Git."""
         self.notify("Syncing...", title="Sync")
         try:
-            from ..git_sync import GitSync
+            from ..sync import GitSync
 
             git_sync = GitSync(self.config)
             git_sync.sync("Sync from TUI")
-            self.refresh_notes()
+            await self.refresh_notes()
             self.notify("Sync complete", title="Sync")
         except Exception as e:
             self.notify(f"Sync failed: {e}", severity="error")
 
-    def action_refresh(self) -> None:
+    async def action_refresh(self) -> None:
         """Refresh the display."""
-        self.refresh_notes()
+        await self.refresh_notes()
         self.notify("Refreshed")
 
     def action_help(self) -> None:
@@ -197,12 +198,32 @@ class GPGNotesApp(App):
         preview = self.query_one("#preview", PreviewPanel)
         notes_list = self.query_one("#notes-list", NotesListPanel)
         note_path = notes_list.get_note_path(note_id)
+        note_metadata = notes_list.get_note_metadata(note_id)
 
-        if note_path:
+        if note_path and note_metadata:
+            # Try to load full content (works for plain notes or if GPG passphrase is cached)
             try:
                 note = self.storage.load_note(note_path)
                 preview.update_content(note)
-            except Exception as e:
+            except Exception:
+                # Decryption failed (no cached passphrase) - show metadata only
+                preview.update_metadata(note_metadata)
+
+    def _update_preview_full(self, note_id: str, note_path) -> None:
+        """Update preview with full content (use after editing when GPG is cached)."""
+        preview = self.query_one("#preview", PreviewPanel)
+        self._selected_note_id = note_id
+
+        try:
+            note = self.storage.load_note(note_path)
+            preview.update_content(note)
+        except Exception as e:
+            # Fall back to metadata-only view if decryption fails
+            notes_list = self.query_one("#notes-list", NotesListPanel)
+            note_metadata = notes_list.get_note_metadata(note_id)
+            if note_metadata:
+                preview.update_metadata(note_metadata)
+            else:
                 preview.show_error(f"Error loading note: {e}")
 
     def _clear_preview(self) -> None:
@@ -214,19 +235,19 @@ class GPGNotesApp(App):
         """Handle note selection from list."""
         self._select_note(event.note_id)
 
-    def on_notes_list_panel_note_activated(self, event) -> None:
+    async def on_notes_list_panel_note_activated(self, event) -> None:
         """Handle note activation (Enter key) from list."""
-        self._edit_note(event.note_id)
+        await self._edit_note(event.note_id)
 
-    def on_folders_panel_folder_selected(self, event) -> None:
+    async def on_folders_panel_folder_selected(self, event) -> None:
         """Handle folder selection."""
         notes_list = self.query_one("#notes-list", NotesListPanel)
-        notes_list.filter_by_folder(event.folder_name)
+        await notes_list.filter_by_folder(event.folder_name)
 
-    def on_tags_panel_tag_selected(self, event) -> None:
+    async def on_tags_panel_tag_selected(self, event) -> None:
         """Handle tag selection."""
         notes_list = self.query_one("#notes-list", NotesListPanel)
-        notes_list.filter_by_tag(event.tag_name)
+        await notes_list.filter_by_tag(event.tag_name)
 
     def on_unmount(self) -> None:
         """Cleanup on unmount."""

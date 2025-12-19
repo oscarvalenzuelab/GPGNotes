@@ -1,5 +1,7 @@
 """Preview panel widget for displaying note content."""
 
+from datetime import datetime
+
 from textual.app import ComposeResult
 from textual.containers import VerticalScroll
 from textual.widgets import Markdown, Static
@@ -40,6 +42,13 @@ class PreviewPanel(VerticalScroll):
 
     PreviewPanel > .error-message {
         color: $error;
+    }
+
+    PreviewPanel > .encrypted-notice {
+        color: $warning;
+        text-style: bold;
+        padding: 2 0;
+        text-align: center;
     }
     """
 
@@ -84,6 +93,50 @@ class PreviewPanel(VerticalScroll):
             self.mount(Markdown(note.content, classes="preview-content"))
         else:
             self.mount(Static("(No content)", classes="empty-message"))
+
+    def update_metadata(self, metadata: dict) -> None:
+        """Update preview with metadata only (for encrypted notes without decryption)."""
+        self._current_note = None
+
+        # Clear current content
+        self.remove_children()
+
+        # Add title
+        title = metadata.get("title", "Untitled")
+        self.mount(Static(f"# {title}", classes="preview-title"))
+
+        # Add metadata
+        meta_parts = []
+        tags = metadata.get("tags", [])
+        if tags:
+            # Filter out folder tags for display
+            display_tags = [t for t in tags if not t.startswith("folder:")]
+            if display_tags:
+                meta_parts.append(f"Tags: {', '.join(display_tags)}")
+
+        # Show folders
+        folders = [t[7:] for t in tags if t.startswith("folder:")]
+        if folders:
+            meta_parts.append(f"Folders: {', '.join(folders)}")
+
+        modified_str = metadata.get("modified")
+        if modified_str:
+            try:
+                modified = datetime.fromisoformat(modified_str)
+                meta_parts.append(f"Modified: {modified.strftime('%Y-%m-%d %H:%M')}")
+            except (ValueError, TypeError):
+                pass
+
+        if meta_parts:
+            self.mount(Static(" | ".join(meta_parts), classes="preview-meta"))
+
+        # Show encrypted notice
+        self.mount(
+            Static(
+                "🔒 Encrypted Note\n\nPress Enter to decrypt and edit",
+                classes="encrypted-notice",
+            )
+        )
 
     def show_error(self, message: str) -> None:
         """Show an error message."""

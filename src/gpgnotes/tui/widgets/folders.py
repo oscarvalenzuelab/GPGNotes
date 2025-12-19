@@ -62,11 +62,7 @@ class FoldersPanel(Vertical):
         yield Static("📁 FOLDERS", classes="panel-title")
         yield ListView(id="folders-list")
 
-    def on_mount(self) -> None:
-        """Load folders on mount."""
-        self.refresh_folders()
-
-    def refresh_folders(self) -> None:
+    async def refresh_folders(self) -> None:
         """Refresh the folders list."""
         index = SearchIndex(self.config)
         try:
@@ -75,7 +71,7 @@ class FoldersPanel(Vertical):
             index.close()
 
         list_view = self.query_one("#folders-list", ListView)
-        list_view.clear()
+        await list_view.clear()
 
         # Add "All Notes" option
         list_view.append(ListItem(Label("📋 All Notes"), id="folder-all"))
