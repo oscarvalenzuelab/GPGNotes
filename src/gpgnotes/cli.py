@@ -16,6 +16,7 @@ from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.table import Table
 
+from . import __version__
 from .config import Config
 from .daily import DailyNoteManager
 from .history import VersionHistory, parse_diff_output
@@ -209,7 +210,7 @@ def _background_sync():
 
 @click.group(invoke_without_command=True)
 @click.pass_context
-@click.version_option(version="0.3.2")
+@click.version_option(version=__version__)
 def main(ctx):
     """GPGNotes - Encrypted note-taking with Git sync."""
     # Register exit handler for background sync
@@ -2956,7 +2957,7 @@ def interactive_mode():
 
     console.print(
         Panel.fit(
-            "[cyan]GPGNotes[/cyan] - Interactive Mode\n\n"
+            f"[cyan]GPGNotes[/cyan] v{__version__} - Interactive Mode\n\n"
             "Type to search, or use commands:\n"
             "  [green]new[/green] - Create new note\n"
             "  [green]list[/green] - List all notes\n"
@@ -2968,12 +2969,9 @@ def interactive_mode():
             "  [green]encrypt <ID>[/green] - Encrypt a plain note\n"
             "  [green]decrypt <ID>[/green] - Decrypt to plain note\n"
             "  [green]move <ID> -f <folder>[/green] - Move to folder\n"
-            "  [green]import <file|URL>[/green] - Import file/URL as note\n"
-            "  [green]clip <URL>[/green] - Clip web page as note\n"
+            "  [green]import <source>[/green] - Import file, URL, or web page\n"
             "  [green]enhance <ID>[/green] - Enhance note with AI\n"
-            '  [green]daily "entry"[/green] - Quick daily log entry\n'
-            "  [green]today[/green] - Open today's daily note\n"
-            "  [green]yesterday[/green] - Open yesterday's note\n"
+            '  [green]daily[/green] - Daily notes (today, yesterday, "entry")\n'
             "  [green]tags[/green] - Show all tags\n"
             "  [green]templates[/green] - List note templates\n"
             "  [green]export <ID>[/green] - Export a note\n"
@@ -3384,6 +3382,47 @@ def interactive_mode():
             break
 
     console.print("\n[cyan]Goodbye![/cyan]")
+
+
+@main.command()
+def tui():
+    """Launch the interactive TUI application.
+
+    Provides a full-screen text user interface for browsing,
+    creating, and editing notes with keyboard navigation.
+
+    Requires the 'tui' extra: pip install gpgnotes[tui]
+    """
+    try:
+        from .tui import GPGNotesApp
+    except ImportError:
+        console.print("[red]Error: TUI requires textual library.[/red]")
+        console.print("\n[yellow]Install with:[/yellow]")
+        console.print("  pip install gpgnotes[tui]")
+        console.print("\n[dim]Or: pip install textual[/dim]")
+        sys.exit(1)
+
+    config = Config()
+
+    # Check if GPG key is configured
+    if not config.get("gpg_key"):
+        console.print("[red]Error: GPG key not configured. Run 'notes init' first.[/red]")
+        sys.exit(1)
+
+    # Sync before launching TUI to cache GPG passphrase and avoid pinentry conflicts
+    from .sync import GitSync
+
+    git_sync = GitSync(config)
+    if git_sync.has_remote():
+        console.print("[dim]Syncing before TUI launch...[/dim]")
+        try:
+            git_sync.sync("Pre-TUI sync")
+            console.print("[green]Sync complete.[/green]")
+        except Exception as e:
+            console.print(f"[yellow]Sync warning: {e}[/yellow]")
+
+    app = GPGNotesApp()
+    app.run()
 
 
 if __name__ == "__main__":

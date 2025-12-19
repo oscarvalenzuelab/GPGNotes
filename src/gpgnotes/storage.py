@@ -121,9 +121,13 @@ class Storage:
 
     def _is_plain_file(self, file_path: Path) -> bool:
         """Check if a file is a plain (non-encrypted) file."""
+        # Files with .gpg extension are always encrypted
+        if file_path.suffix == ".gpg":
+            return False
+
         try:
-            # Check if file is in plain directory
-            file_path.relative_to(self.plain_dir)
+            # Check if file is in plain directory (resolve paths for consistent comparison)
+            file_path.resolve().relative_to(self.plain_dir.resolve())
             return True
         except ValueError:
             return False

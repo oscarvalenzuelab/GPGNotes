@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gpgnotes"
-version = "0.3.2"
+version = "0.4.1"
 description = "GPGNotes - A CLI note-taking tool with GPG encryption, tagging, and Git sync"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -55,6 +55,9 @@ import = [
     "python-docx>=1.0.0",
     "pypdf>=4.0.0",
     "striprtf>=0.0.26",
+]
+tui = [
+    "textual>=0.89.0",
 ]
 
 [project.urls]

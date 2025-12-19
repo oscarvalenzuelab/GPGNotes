@@ -5,6 +5,27 @@ All notable changes to GPGNotes will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2025-12-18
+
+### Fixed
+
+- **TUI Import Error**: Fixed `ModuleNotFoundError: No module named 'gpgnotes.git_sync'` when using sync (y) in TUI. The import was incorrectly referencing `git_sync` instead of `sync`.
+
+- **TUI Preview Not Displaying**: Fixed issue where encrypted note preview wouldn't display content after pressing Enter and authorizing GPG. The preview now attempts to load full content when GPG passphrase is cached, with fallback to metadata-only view.
+
+### Added
+
+- **Pre-TUI Sync**: TUI now automatically syncs before launching (when remote is configured). This caches the GPG passphrase before the TUI takes over the terminal, preventing pinentry conflicts.
+
+- **Version Display**: Interactive mode now shows version number in the welcome banner (e.g., "GPGNotes v0.4.1 - Interactive Mode").
+
+### Changed
+
+- **Interactive Mode Menu**: Consolidated and simplified the welcome menu:
+  - Combined `today`, `yesterday`, and `daily "entry"` into single `daily` command entry
+  - Removed redundant `clip` command (it's an alias for `import <url>`)
+  - Updated `import` description to clarify it handles files, URLs, and web pages
+
 ## [0.3.2] - 2025-12-18
 
 ### Added
@@ -522,6 +543,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sync requires Git remote to be configured manually
 - Initial sync from existing remote requires `--allow-unrelated-histories` (handled automatically)
 
+[0.4.1]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.4.1
 [0.3.2]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.3.2
 [0.3.1]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.3.1
 [0.3.0]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.3.0

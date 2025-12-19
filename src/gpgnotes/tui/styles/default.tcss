@@ -1,0 +1,133 @@
+/* GPGNotes TUI Default Theme */
+
+Screen {
+    background: $surface;
+}
+
+Header {
+    background: $primary;
+    color: $text;
+    text-style: bold;
+}
+
+Footer {
+    background: $primary-darken-2;
+}
+
+#main-container {
+    width: 100%;
+    height: 100%;
+}
+
+#sidebar {
+    width: 35;
+    height: 100%;
+    border-right: solid $primary;
+}
+
+#preview {
+    width: 1fr;
+    height: 100%;
+}
+
+/* Panel styles */
+.panel-title {
+    text-style: bold;
+    color: $secondary;
+    padding: 0;
+}
+
+/* List styles */
+ListView {
+    background: transparent;
+}
+
+ListItem {
+    padding: 0;
+}
+
+ListItem:hover {
+    background: $surface-lighten-1;
+}
+
+ListItem.-selected {
+    background: $primary;
+}
+
+/* Scrollbar */
+VerticalScroll > .scrollbar {
+    background: $surface-lighten-1;
+}
+
+VerticalScroll > .scrollbar--bar {
+    background: $primary-lighten-1;
+}
+
+/* Markdown rendering */
+Markdown {
+    margin: 0;
+    padding: 0;
+}
+
+Markdown H1 {
+    text-style: bold;
+    color: $secondary;
+    padding-bottom: 1;
+}
+
+Markdown H2 {
+    text-style: bold;
+    color: $primary-lighten-1;
+    padding: 1 0;
+}
+
+Markdown H3 {
+    text-style: bold;
+    padding: 1 0;
+}
+
+Markdown BlockQuote {
+    background: $surface-lighten-1;
+    border-left: thick $primary;
+    padding: 0 1;
+    margin: 1 0;
+}
+
+Markdown MarkdownFence {
+    background: $surface-darken-1;
+    border: solid $primary-darken-1;
+    padding: 0 1;
+    margin: 1 0;
+}
+
+/* Buttons */
+Button {
+    min-width: 12;
+}
+
+Button.-primary {
+    background: $primary;
+}
+
+Button:hover {
+    background: $primary-lighten-1;
+}
+
+/* Input */
+Input {
+    border: tall $primary;
+    padding: 0 1;
+}
+
+Input:focus {
+    border: tall $secondary;
+}
+
+/* Checkbox */
+Checkbox {
+    padding: 0;
+}
+
+Checkbox:focus > .toggle--label {
+    text-style: underline;
+}
