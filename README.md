@@ -47,6 +47,17 @@ pip install gpgnotes[import]   # PDF/DOCX import/export
 pip install gpgnotes[tui]      # Full-screen TUI interface
 ```
 
+### Install with pipx
+
+```bash
+pipx install gpgnotes
+
+# Add optional dependencies
+pipx inject gpgnotes textual              # TUI interface
+pipx inject gpgnotes openai anthropic     # AI enhancement
+pipx inject gpgnotes python-docx pypdf    # PDF/DOCX import
+```
+
 ### Install from source
 
 ```bash
@@ -152,7 +163,7 @@ Run `notes tui` for a full-screen terminal interface with:
 - Auto-sync on launch to cache GPG passphrase
 - Decrypted note preview after authentication
 
-Requires: `pip install gpgnotes[tui]`
+Requires: `pip install gpgnotes[tui]` or `pipx inject gpgnotes textual`
 
 ## Security
 
