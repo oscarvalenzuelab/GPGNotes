@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gpgnotes"
-version = "0.4.1"
+version = "0.4.2"
 description = "GPGNotes - A CLI note-taking tool with GPG encryption, tagging, and Git sync"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -73,6 +73,9 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+"gpgnotes.tui.styles" = ["*.tcss"]
 
 [tool.ruff]
 line-length = 100

@@ -5,6 +5,16 @@ All notable changes to GPGNotes will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.2] - 2025-12-18
+
+### Fixed
+
+- **TUI CSS Not Included**: Fixed `StylesheetError: unable to read CSS file` when running TUI after pip/pipx install. The `.tcss` style files were not being included in the package distribution.
+
+### Added
+
+- **pipx Installation Docs**: Added installation instructions for pipx users with `pipx inject` examples for optional dependencies.
+
 ## [0.4.1] - 2025-12-18
 
 ### Fixed
@@ -543,6 +553,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sync requires Git remote to be configured manually
 - Initial sync from existing remote requires `--allow-unrelated-histories` (handled automatically)
 
+[0.4.2]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.4.2
 [0.4.1]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.4.1
 [0.3.2]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.3.2
 [0.3.1]: https://github.com/oscarvalenzuelab/GPGNotes/releases/tag/v0.3.1
