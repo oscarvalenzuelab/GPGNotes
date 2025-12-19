@@ -1,3 +1,3 @@
 """GPGNotes - A CLI note-taking tool with encryption, tagging, and Git sync."""
 
-__version__ = "0.4.1"
+__version__ = "0.4.2"
