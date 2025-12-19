@@ -2971,7 +2971,7 @@ def interactive_mode():
             "  [green]move <ID> -f <folder>[/green] - Move to folder\n"
             "  [green]import <source>[/green] - Import file, URL, or web page\n"
             "  [green]enhance <ID>[/green] - Enhance note with AI\n"
-            "  [green]daily[/green] - Daily notes (today, yesterday, \"entry\")\n"
+            '  [green]daily[/green] - Daily notes (today, yesterday, "entry")\n'
             "  [green]tags[/green] - Show all tags\n"
             "  [green]templates[/green] - List note templates\n"
             "  [green]export <ID>[/green] - Export a note\n"
