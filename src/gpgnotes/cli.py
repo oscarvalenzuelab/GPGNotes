@@ -3439,10 +3439,12 @@ def links(note_id, broken):
 
     try:
         # Resolve note
-        note = resolve_note_id(note_id, config, storage)
-        if not note:
+        file_path = storage.find_by_id(note_id)
+        if not file_path:
             console.print(f"[red]Note not found: {note_id}[/red]")
             return
+
+        note = storage.load_note(file_path)
 
         # Get links from index
         all_links = index.get_note_links(note.note_id)
@@ -3474,7 +3476,6 @@ def links(note_id, broken):
         console.print("─" * 60)
 
         for link in links_to_show:
-            link_type = link["link_type"]
             target = link["target_title"]
 
             # Build link string
@@ -3498,7 +3499,10 @@ def links(note_id, broken):
                 console.print(f"     [dim]{link['context']}[/dim]")
 
         total = len(all_links)
-        broken_count = len([l for l in all_links if not resolve_note_id(l["target_id"], config, storage)])
+        # Count broken links
+        from .links import LinkResolver
+        resolver = LinkResolver(config)
+        broken_count = sum(1 for link in all_links if not resolver.resolve_link(link["target_id"], storage, fuzzy=False))
         console.print("─" * 60)
         console.print(f"[dim]{total} link(s) total, {broken_count} broken[/dim]\n")
 
@@ -3520,10 +3524,12 @@ def backlinks(note_id, unlinked):
 
     try:
         # Resolve note
-        note = resolve_note_id(note_id, config, storage)
-        if not note:
+        file_path = storage.find_by_id(note_id)
+        if not file_path:
             console.print(f"[red]Note not found: {note_id}[/red]")
             return
+
+        note = storage.load_note(file_path)
 
         # Get backlinks
         links = index.get_backlinks(note.note_id)
@@ -3570,7 +3576,7 @@ def backlinks(note_id, unlinked):
                 console.print("─" * 60 + "\n")
                 console.print("[dim]💡 Consider converting these to wiki links: [[Note Title]][/dim]\n")
             elif not links:
-                console.print(f"[yellow]No unlinked mentions found[/yellow]")
+                console.print("[yellow]No unlinked mentions found[/yellow]")
 
     finally:
         index.close()
@@ -3588,10 +3594,12 @@ def sections(note_id):
 
     try:
         # Resolve note
-        note = resolve_note_id(note_id, config, storage)
-        if not note:
+        file_path = storage.find_by_id(note_id)
+        if not file_path:
             console.print(f"[red]Note not found: {note_id}[/red]")
             return
+
+        note = storage.load_note(file_path)
 
         # Extract headings
         from .blocks import extract_headings
@@ -3632,10 +3640,12 @@ def block(note_id, line):
 
     try:
         # Resolve note
-        note = resolve_note_id(note_id, config, storage)
-        if not note:
+        file_path = storage.find_by_id(note_id)
+        if not file_path:
             console.print(f"[red]Note not found: {note_id}[/red]")
             return
+
+        note = storage.load_note(file_path)
 
         # Add block ID
         from .blocks import add_block_id
