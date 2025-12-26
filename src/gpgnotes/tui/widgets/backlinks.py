@@ -103,9 +103,7 @@ class BacklinksPanel(Vertical):
 
         except Exception:
             # Show error message
-            self.mount(
-                Static("Error loading backlinks", classes="empty-message")
-            )
+            self.mount(Static("Error loading backlinks", classes="empty-message"))
 
     async def clear(self) -> None:
         """Clear backlinks display."""

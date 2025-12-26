@@ -596,9 +596,11 @@ def search(query, tag, folder, page_size, no_pagination):
 
                 table.add_row(
                     note_id,
-                    note_meta["title"][:23] + "..."
-                    if len(note_meta["title"]) > 23
-                    else note_meta["title"],
+                    (
+                        note_meta["title"][:23] + "..."
+                        if len(note_meta["title"]) > 23
+                        else note_meta["title"]
+                    ),
                     preview,
                     ", ".join(note_meta["tags"][:2])
                     + ("..." if len(note_meta["tags"]) > 2 else ""),
@@ -2622,9 +2624,11 @@ def show_cmd(note_id, version, at, render, raw):
             console.print(
                 Panel(
                     f"[bold cyan]{note.title}[/bold cyan]{title_suffix}",
-                    subtitle=f"Modified: {note.modified.strftime('%Y-%m-%d %H:%M')}"
-                    if not title_suffix
-                    else None,
+                    subtitle=(
+                        f"Modified: {note.modified.strftime('%Y-%m-%d %H:%M')}"
+                        if not title_suffix
+                        else None
+                    ),
                     border_style="cyan",
                 )
             )
@@ -3501,8 +3505,13 @@ def links(note_id, broken):
         total = len(all_links)
         # Count broken links
         from .links import LinkResolver
+
         resolver = LinkResolver(config)
-        broken_count = sum(1 for link in all_links if not resolver.resolve_link(link["target_id"], storage, fuzzy=False))
+        broken_count = sum(
+            1
+            for link in all_links
+            if not resolver.resolve_link(link["target_id"], storage, fuzzy=False)
+        )
         console.print("─" * 60)
         console.print(f"[dim]{total} link(s) total, {broken_count} broken[/dim]\n")
 
@@ -3566,7 +3575,9 @@ def backlinks(note_id, unlinked):
             mentions = manager.find_unlinked_mentions(note, storage)
 
             if mentions:
-                console.print(f"\n[bold]Unlinked mentions of '{note.title}' ({len(mentions)} note(s)):[/bold]")
+                console.print(
+                    f"\n[bold]Unlinked mentions of '{note.title}' ({len(mentions)} note(s)):[/bold]"
+                )
                 console.print("─" * 60)
 
                 for mention in mentions:
@@ -3574,7 +3585,9 @@ def backlinks(note_id, unlinked):
                     console.print(f"   [dim]{mention['context']}[/dim]")
 
                 console.print("─" * 60 + "\n")
-                console.print("[dim]💡 Consider converting these to wiki links: [[Note Title]][/dim]\n")
+                console.print(
+                    "[dim]💡 Consider converting these to wiki links: [[Note Title]][/dim]\n"
+                )
             elif not links:
                 console.print("[yellow]No unlinked mentions found[/yellow]")
 

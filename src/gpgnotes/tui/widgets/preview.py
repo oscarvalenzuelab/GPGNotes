@@ -219,9 +219,7 @@ class PreviewPanel(VerticalScroll):
                     context = link["context"]
                     if len(context) > 100:
                         context = context[:97] + "..."
-                    self.mount(
-                        Static(f'    "{context}"', classes="backlink-context")
-                    )
+                    self.mount(Static(f'    "{context}"', classes="backlink-context"))
 
         except Exception:
             # Silently fail if backlinks can't be loaded

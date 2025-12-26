@@ -102,9 +102,7 @@ def extract_block_refs(content: str) -> List[BlockRef]:
             # Get content without the block ID
             content_text = line[: match.start()].strip()
 
-            block_refs.append(
-                BlockRef(block_id=block_id, line_num=i, content=content_text)
-            )
+            block_refs.append(BlockRef(block_id=block_id, line_num=i, content=content_text))
 
     return block_refs
 

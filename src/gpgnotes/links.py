@@ -140,9 +140,7 @@ class LinkResolver:
         """
         self.config = config
 
-    def resolve_link(
-        self, target: str, storage=None, fuzzy: bool = True
-    ) -> Optional[Note]:
+    def resolve_link(self, target: str, storage=None, fuzzy: bool = True) -> Optional[Note]:
         """Resolve wiki link target to actual note.
 
         Resolution order:
@@ -279,9 +277,7 @@ class BacklinksManager:
         """
         self.config = config
 
-    def get_backlinks(
-        self, note: Note, include_context: bool = True
-    ) -> List[dict]:
+    def get_backlinks(self, note: Note, include_context: bool = True) -> List[dict]:
         """Get all backlinks to a note.
 
         Args:
