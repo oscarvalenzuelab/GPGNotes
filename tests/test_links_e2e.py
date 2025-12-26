@@ -224,7 +224,7 @@ class TestWikiLinksE2E:
         config, storage, index = setup_notes
 
         # Load meeting notes which reference Project Alpha^decision1
-        meeting = find_note_by_title(index, storage, "Meeting Notes")
+        meeting = find_note_by_title(index, storage, "Meeting Notes - Jan 15")
         assert meeting is not None
 
         # Extract links

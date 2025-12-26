@@ -164,6 +164,26 @@ class SearchIndex:
         """Remove note from index."""
         # Try to match both absolute and as-is paths
         abs_path = str(file_path.resolve())
+
+        # First, get the note_id so we can remove links
+        cursor = self.conn.execute(
+            """
+            SELECT file_path FROM notes_fts WHERE file_path = ? OR file_path = ?
+            LIMIT 1
+        """,
+            (abs_path, str(file_path)),
+        )
+        row = cursor.fetchone()
+        if row:
+            # Extract note_id from file path
+            from pathlib import Path as PathLib
+            note_path = PathLib(row[0])
+            note_id = note_path.stem.replace(".md", "")
+
+            # Remove all links where this note is source or target
+            self.conn.execute("DELETE FROM note_links WHERE source_id = ?", (note_id,))
+            self.conn.execute("DELETE FROM note_links WHERE target_id = ?", (note_id,))
+
         self.conn.execute(
             """
             DELETE FROM notes_fts WHERE file_path = ? OR file_path = ?
