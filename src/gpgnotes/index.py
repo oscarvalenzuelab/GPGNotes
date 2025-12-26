@@ -137,6 +137,9 @@ class SearchIndex:
 
         self.conn.commit()
 
+        # Automatically index links when note is added
+        self.index_note_links(note)
+
         # Extract and store todos from the note content
         todos = parse_todos(note.content, file_path_str)
         if todos:
