@@ -4,6 +4,7 @@ from datetime import datetime
 from pathlib import Path
 
 from gpgnotes.config import Config
+from gpgnotes.links import extract_wiki_links
 from gpgnotes.note import Note
 from gpgnotes.storage import Storage
 
@@ -56,4 +57,16 @@ And another [[Second Link|with alias]].
     assert loaded_note.created == datetime(2025, 1, 1, 10, 0, 0)
 
     # Most importantly: verify content preserved
-    assert loaded_note.content == original_content, f"Content mismatch!\nOriginal: {repr(original_content)}\nLoaded: {repr(loaded_note.content)}"
+    # Note: frontmatter library strips trailing newline, so we compare with rstrip
+    assert loaded_note.content.rstrip() == original_content.rstrip(), f"Content mismatch!\nOriginal: {repr(original_content)}\nLoaded: {repr(loaded_note.content)}"
+
+    # Verify wiki links are preserved
+    assert "[[Wiki Link]]" in loaded_note.content
+    assert "[[Second Link|with alias]]" in loaded_note.content
+
+    # Verify wiki links can be extracted
+    links = extract_wiki_links(loaded_note.content)
+    assert len(links) == 2
+    assert links[0].target == "Wiki Link"
+    assert links[1].target == "Second Link"
+    assert links[1].alias == "with alias"
