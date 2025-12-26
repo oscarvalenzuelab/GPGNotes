@@ -596,9 +596,11 @@ def search(query, tag, folder, page_size, no_pagination):
 
                 table.add_row(
                     note_id,
-                    note_meta["title"][:23] + "..."
-                    if len(note_meta["title"]) > 23
-                    else note_meta["title"],
+                    (
+                        note_meta["title"][:23] + "..."
+                        if len(note_meta["title"]) > 23
+                        else note_meta["title"]
+                    ),
                     preview,
                     ", ".join(note_meta["tags"][:2])
                     + ("..." if len(note_meta["tags"]) > 2 else ""),
@@ -2622,9 +2624,11 @@ def show_cmd(note_id, version, at, render, raw):
             console.print(
                 Panel(
                     f"[bold cyan]{note.title}[/bold cyan]{title_suffix}",
-                    subtitle=f"Modified: {note.modified.strftime('%Y-%m-%d %H:%M')}"
-                    if not title_suffix
-                    else None,
+                    subtitle=(
+                        f"Modified: {note.modified.strftime('%Y-%m-%d %H:%M')}"
+                        if not title_suffix
+                        else None
+                    ),
                     border_style="cyan",
                 )
             )
@@ -3423,6 +3427,315 @@ def tui():
 
     app = GPGNotesApp()
     app.run()
+
+
+@main.command()
+@click.argument("note_id")
+@click.option("--broken", "-b", is_flag=True, help="Only show broken links")
+def links(note_id, broken):
+    """List all wiki-style links in a note.
+
+    Shows [[Note Title]] links with their status (valid/broken).
+    """
+    config = Config()
+    storage = Storage(config)
+    index = SearchIndex(config)
+
+    try:
+        # Resolve note
+        file_path = storage.find_by_id(note_id)
+        if not file_path:
+            console.print(f"[red]Note not found: {note_id}[/red]")
+            return
+
+        note = storage.load_note(file_path)
+
+        # Get links from index
+        all_links = index.get_note_links(note.note_id)
+
+        if not all_links:
+            console.print(f"[yellow]No links found in '{note.title}'[/yellow]")
+            return
+
+        # Filter broken links if requested
+        if broken:
+            from .links import LinkResolver
+
+            resolver = LinkResolver(config)
+            links_to_show = []
+            for link in all_links:
+                resolved = resolver.resolve_link(link["target_id"], storage, fuzzy=False)
+                if not resolved:
+                    links_to_show.append(link)
+        else:
+            links_to_show = all_links
+
+        if not links_to_show:
+            if broken:
+                console.print(f"[green]No broken links in '{note.title}'[/green]")
+            return
+
+        # Display links
+        console.print(f"\n[bold]Links in '{note.title}':[/bold]")
+        console.print("─" * 60)
+
+        for link in links_to_show:
+            target = link["target_title"]
+
+            # Build link string
+            link_str = f"[[{target}"
+            if link["section"]:
+                link_str += f"#{link['section']}"
+            if link["block_id"]:
+                link_str += f"^{link['block_id']}"
+            link_str += "]]"
+
+            # Check if valid
+            from .links import LinkResolver
+
+            resolver = LinkResolver(config)
+            resolved = resolver.resolve_link(link["target_id"], storage, fuzzy=False)
+            status = "[green]✓[/green]" if resolved else "[red]✗[/red]"
+
+            console.print(f"  {status} {link_str}")
+
+            if link["context"]:
+                console.print(f"     [dim]{link['context']}[/dim]")
+
+        total = len(all_links)
+        # Count broken links
+        from .links import LinkResolver
+
+        resolver = LinkResolver(config)
+        broken_count = sum(
+            1
+            for link in all_links
+            if not resolver.resolve_link(link["target_id"], storage, fuzzy=False)
+        )
+        console.print("─" * 60)
+        console.print(f"[dim]{total} link(s) total, {broken_count} broken[/dim]\n")
+
+    finally:
+        index.close()
+
+
+@main.command()
+@click.argument("note_id")
+@click.option("--unlinked", "-u", is_flag=True, help="Show unlinked mentions")
+def backlinks(note_id, unlinked):
+    """Show notes that link to this note.
+
+    Displays all incoming wiki-style links (backlinks) to the specified note.
+    """
+    config = Config()
+    storage = Storage(config)
+    index = SearchIndex(config)
+
+    try:
+        # Resolve note
+        file_path = storage.find_by_id(note_id)
+        if not file_path:
+            console.print(f"[red]Note not found: {note_id}[/red]")
+            return
+
+        note = storage.load_note(file_path)
+
+        # Get backlinks
+        links = index.get_backlinks(note.note_id)
+
+        if not links and not unlinked:
+            console.print(f"[yellow]No backlinks to '{note.title}'[/yellow]")
+            return
+
+        # Display backlinks
+        if links:
+            console.print(f"\n[bold]Backlinks to '{note.title}' ({len(links)} note(s)):[/bold]")
+            console.print("═" * 60)
+
+            for link in links:
+                source_title = link["source_title"] or link["source_id"]
+                console.print(f"\n[cyan]📄 {source_title}[/cyan]")
+
+                if link["context"]:
+                    console.print(f'   [dim]"{link["context"]}"[/dim]')
+
+                # Show link type details
+                if link["section"]:
+                    console.print(f"   [dim]→ Links to section: #{link['section']}[/dim]")
+                elif link["block_id"]:
+                    console.print(f"   [dim]→ Links to block: ^{link['block_id']}[/dim]")
+
+            console.print("═" * 60 + "\n")
+
+        # Show unlinked mentions if requested
+        if unlinked:
+            from .links import BacklinksManager
+
+            manager = BacklinksManager(config)
+            mentions = manager.find_unlinked_mentions(note, storage)
+
+            if mentions:
+                console.print(
+                    f"\n[bold]Unlinked mentions of '{note.title}' ({len(mentions)} note(s)):[/bold]"
+                )
+                console.print("─" * 60)
+
+                for mention in mentions:
+                    console.print(f"\n[yellow]~ {mention['title']}[/yellow]")
+                    console.print(f"   [dim]{mention['context']}[/dim]")
+
+                console.print("─" * 60 + "\n")
+                console.print(
+                    "[dim]💡 Consider converting these to wiki links: [[Note Title]][/dim]\n"
+                )
+            elif not links:
+                console.print("[yellow]No unlinked mentions found[/yellow]")
+
+    finally:
+        index.close()
+
+
+@main.command()
+@click.argument("note_id")
+def sections(note_id):
+    """List all sections (headings) in a note.
+
+    Shows the outline of the note for use with section links [[Note#Section]].
+    """
+    config = Config()
+    storage = Storage(config)
+
+    try:
+        # Resolve note
+        file_path = storage.find_by_id(note_id)
+        if not file_path:
+            console.print(f"[red]Note not found: {note_id}[/red]")
+            return
+
+        note = storage.load_note(file_path)
+
+        # Extract headings
+        from .blocks import extract_headings
+
+        headings = extract_headings(note.content)
+
+        if not headings:
+            console.print(f"[yellow]No sections found in '{note.title}'[/yellow]")
+            return
+
+        # Display sections
+        console.print(f"\n[bold]Sections in '{note.title}':[/bold]")
+        console.print("═" * 60)
+
+        for heading in headings:
+            indent = "  " * (heading.level - 1)
+            marker = "#" * heading.level
+            console.print(f"{indent}[cyan]{marker}[/cyan] {heading.text}")
+            console.print(f"{indent}   [dim]Link: [[{note.title}#{heading.slug}]][/dim]")
+
+        console.print("═" * 60)
+        console.print(f"[dim]{len(headings)} section(s)[/dim]\n")
+
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+
+
+@main.command()
+@click.argument("note_id")
+@click.option("--line", "-l", type=int, required=True, help="Line number to add block ID to")
+def block(note_id, line):
+    """Add a block reference ID to a specific line.
+
+    Block references allow linking to specific paragraphs using [[Note^blockid]].
+    """
+    config = Config()
+    storage = Storage(config)
+
+    try:
+        # Resolve note
+        file_path = storage.find_by_id(note_id)
+        if not file_path:
+            console.print(f"[red]Note not found: {note_id}[/red]")
+            return
+
+        note = storage.load_note(file_path)
+
+        # Add block ID
+        from .blocks import add_block_id
+
+        try:
+            new_content, block_id = add_block_id(note.content, line)
+
+            # Update note
+            note.content = new_content
+            note.update_modified()
+            storage.save_note(note)
+
+            # Reindex
+            index = SearchIndex(config)
+            try:
+                index.add_note(note)
+            finally:
+                index.close()
+
+            console.print(f"[green]✓ Added block ID: ^{block_id}[/green]")
+            console.print(f"[dim]Link to this block: [[{note.title}^{block_id}]][/dim]")
+
+        except ValueError as e:
+            console.print(f"[red]Error: {e}[/red]")
+
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+
+
+@main.command("broken-links")
+def broken_links_cmd():
+    """Find all broken links across all notes.
+
+    Scans the entire notes database for wiki links that point to non-existent notes.
+    """
+    config = Config()
+    index = SearchIndex(config)
+
+    try:
+        broken = index.get_broken_links()
+
+        if not broken:
+            console.print("[green]✓ No broken links found![/green]")
+            return
+
+        # Group by source note
+        by_source = {}
+        for link in broken:
+            source = link["source_title"] or link["source_id"]
+            if source not in by_source:
+                by_source[source] = []
+            by_source[source].append(link)
+
+        # Display
+        console.print(f"\n[bold red]Found {len(broken)} broken link(s):[/bold red]")
+        console.print("═" * 60)
+
+        for source, links in by_source.items():
+            console.print(f"\n[cyan]📄 {source}[/cyan]")
+
+            for link in links:
+                target = link["target_title"]
+                link_str = f"[[{target}"
+                if link["section"]:
+                    link_str += f"#{link['section']}"
+                if link["block_id"]:
+                    link_str += f"^{link['block_id']}"
+                link_str += "]]"
+
+                console.print(f"   [red]✗ {link_str}[/red]")
+                if link["context"]:
+                    console.print(f"      [dim]{link['context']}[/dim]")
+
+        console.print("═" * 60 + "\n")
+
+    finally:
+        index.close()
 
 
 if __name__ == "__main__":

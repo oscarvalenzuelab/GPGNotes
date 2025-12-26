@@ -50,6 +50,28 @@ class PreviewPanel(VerticalScroll):
         padding: 2 0;
         text-align: center;
     }
+
+    PreviewPanel > .preview-separator {
+        color: $primary;
+        padding: 1 0;
+    }
+
+    PreviewPanel > .backlinks-header {
+        text-style: bold;
+        color: $secondary;
+        padding: 0 0 1 0;
+    }
+
+    PreviewPanel > .backlink-item {
+        color: $text;
+        padding: 0;
+    }
+
+    PreviewPanel > .backlink-context {
+        color: $text-muted;
+        text-style: italic;
+        padding: 0 0 0 2;
+    }
     """
 
     def __init__(self, **kwargs):
@@ -93,6 +115,9 @@ class PreviewPanel(VerticalScroll):
             self.mount(Markdown(note.content, classes="preview-content"))
         else:
             self.mount(Static("(No content)", classes="empty-message"))
+
+        # Add backlinks section if enabled
+        self._add_backlinks_section(note)
 
     def update_metadata(self, metadata: dict) -> None:
         """Update preview with metadata only (for encrypted notes without decryption)."""
@@ -148,3 +173,54 @@ class PreviewPanel(VerticalScroll):
         self._current_note = None
         self.remove_children()
         self.mount(Static("Select a note to preview", classes="empty-message"))
+
+    def _add_backlinks_section(self, note: Note) -> None:
+        """Add backlinks section to preview if enabled."""
+        try:
+            # Get config to check if backlinks should be shown
+            from ...config import Config
+
+            config = Config()
+            show_mode = config.get("tui_show_backlinks", "both")
+
+            if show_mode not in ["preview", "both"]:
+                return
+
+            # Get backlinks from index
+            from ...index import SearchIndex
+
+            index = SearchIndex(config)
+            try:
+                backlinks = index.get_backlinks(note.note_id)
+            finally:
+                index.close()
+
+            if not backlinks:
+                return
+
+            # Add separator
+            self.mount(Static("─" * 60, classes="preview-separator"))
+
+            # Add backlinks header
+            self.mount(
+                Static(
+                    f"📎 Backlinks ({len(backlinks)})",
+                    classes="backlinks-header",
+                )
+            )
+
+            # Add each backlink
+            for link in backlinks:
+                source_title = link["source_title"] or link["source_id"]
+                self.mount(Static(f"  • {source_title}", classes="backlink-item"))
+
+                if link["context"]:
+                    # Truncate context if too long
+                    context = link["context"]
+                    if len(context) > 100:
+                        context = context[:97] + "..."
+                    self.mount(Static(f'    "{context}"', classes="backlink-context"))
+
+        except Exception:
+            # Silently fail if backlinks can't be loaded
+            pass
