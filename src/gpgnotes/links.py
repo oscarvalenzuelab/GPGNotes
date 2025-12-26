@@ -174,7 +174,9 @@ class LinkResolver:
         results = index.search(f'title:"{target}"', limit=100)
 
         for result in results:
-            note_path = Path(result["file_path"])
+            # Handle tuple (file_path, title, modified) from search
+            file_path = result[0] if isinstance(result, tuple) else result["file_path"]
+            note_path = Path(file_path)
             if note_path.exists():
                 note = storage.load_note(note_path)
                 if note.title.lower() == target.lower():
@@ -186,8 +188,9 @@ class LinkResolver:
             results = index.search(target, limit=10)
             if results:
                 # Get most recent match
-                most_recent = max(results, key=lambda r: r.get("modified", ""))
-                note_path = Path(most_recent["file_path"])
+                most_recent = max(results, key=lambda r: r[2] if isinstance(r, tuple) else r.get("modified", ""))
+                file_path = most_recent[0] if isinstance(most_recent, tuple) else most_recent["file_path"]
+                note_path = Path(file_path)
                 if note_path.exists():
                     note = storage.load_note(note_path)
                     index.close()
@@ -357,7 +360,9 @@ class BacklinksManager:
             results = index.search(note.title, limit=100)
 
             for result in results:
-                note_path = Path(result["file_path"])
+                # Handle tuple (file_path, title, modified) from search
+                file_path = result[0] if isinstance(result, tuple) else result["file_path"]
+                note_path = Path(file_path)
 
                 # Skip the note itself
                 if note_path == note.file_path:
