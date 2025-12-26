@@ -188,8 +188,12 @@ class LinkResolver:
             results = index.search(target, limit=10)
             if results:
                 # Get most recent match
-                most_recent = max(results, key=lambda r: r[2] if isinstance(r, tuple) else r.get("modified", ""))
-                file_path = most_recent[0] if isinstance(most_recent, tuple) else most_recent["file_path"]
+                most_recent = max(
+                    results, key=lambda r: r[2] if isinstance(r, tuple) else r.get("modified", "")
+                )
+                file_path = (
+                    most_recent[0] if isinstance(most_recent, tuple) else most_recent["file_path"]
+                )
                 note_path = Path(file_path)
                 if note_path.exists():
                     note = storage.load_note(note_path)
