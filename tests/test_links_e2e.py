@@ -12,21 +12,18 @@ from gpgnotes.links import LinkResolver, BacklinksManager, extract_wiki_links
 from gpgnotes.blocks import add_block_id, extract_headings
 
 
-class TestWikiLinksE2E:
-    """End-to-end tests for the complete wiki links workflow."""
+@pytest.fixture
+def setup_notes(tmp_path):
+    """Set up a small knowledge base with linked notes."""
+    config = Config(tmp_path)
+    config.ensure_dirs()
+    storage = Storage(config)
+    index = SearchIndex(config)
 
-    @pytest.fixture
-    def setup_notes(self, tmp_path):
-        """Set up a small knowledge base with linked notes."""
-        config = Config(tmp_path)
-        config.ensure_dirs()
-        storage = Storage(config)
-        index = SearchIndex(config)
-
-        # Create a project plan note
-        project = Note(
-            title="Project Alpha",
-            content="""# Project Alpha
+    # Create a project plan note
+    project = Note(
+        title="Project Alpha",
+        content="""# Project Alpha
 
 ## Overview
 This is a major project for Q1 2025.
@@ -41,17 +38,17 @@ See [[Team Members]] and [[Budget 2025]] for details.
 
 Important decision made here. ^decision1
 """,
-            tags=["project", "folder:work"],
-        )
-        project.file_path = config.notes_dir / project.get_relative_path()
-        project.file_path.parent.mkdir(parents=True, exist_ok=True)
-        storage.save_note(project)
-        index.add_note(project)
+        tags=["project", "folder:work"],
+    )
+    project.file_path = config.notes_dir / project.get_relative_path()
+    project.file_path.parent.mkdir(parents=True, exist_ok=True)
+    storage.save_note(project)
+    index.add_note(project)
 
-        # Create team members note
-        team = Note(
-            title="Team Members",
-            content="""# Team Members
+    # Create team members note
+    team = Note(
+        title="Team Members",
+        content="""# Team Members
 
 ## Core Team
 - Alice (Lead)
@@ -60,45 +57,49 @@ Important decision made here. ^decision1
 
 Working on [[Project Alpha]].
 """,
-            tags=["team", "folder:work"],
-        )
-        team.file_path = config.notes_dir / team.get_relative_path()
-        team.file_path.parent.mkdir(parents=True, exist_ok=True)
-        storage.save_note(team)
-        index.add_note(team)
+        tags=["team", "folder:work"],
+    )
+    team.file_path = config.notes_dir / team.get_relative_path()
+    team.file_path.parent.mkdir(parents=True, exist_ok=True)
+    storage.save_note(team)
+    index.add_note(team)
 
-        # Create budget note
-        budget = Note(
-            title="Budget 2025",
-            content="""# Budget 2025
+    # Create budget note
+    budget = Note(
+        title="Budget 2025",
+        content="""# Budget 2025
 
 Allocated $50k to [[Project Alpha#Timeline|the project timeline]].
 
 Also funding [[Other Project]].
 """,
-            tags=["finance", "folder:work"],
-        )
-        budget.file_path = config.notes_dir / budget.get_relative_path()
-        budget.file_path.parent.mkdir(parents=True, exist_ok=True)
-        storage.save_note(budget)
-        index.add_note(budget)
+        tags=["finance", "folder:work"],
+    )
+    budget.file_path = config.notes_dir / budget.get_relative_path()
+    budget.file_path.parent.mkdir(parents=True, exist_ok=True)
+    storage.save_note(budget)
+    index.add_note(budget)
 
-        # Create meeting notes
-        meeting = Note(
-            title="Meeting Notes - Jan 15",
-            content="""# Meeting Notes
+    # Create meeting notes
+    meeting = Note(
+        title="Meeting Notes - Jan 15",
+        content="""# Meeting Notes
 
 Discussed Project Alpha timeline.
 
 Reference: [[Project Alpha^decision1]]
 """,
-        )
-        meeting.file_path = config.notes_dir / meeting.get_relative_path()
-        meeting.file_path.parent.mkdir(parents=True, exist_ok=True)
-        storage.save_note(meeting)
-        index.add_note(meeting)
+    )
+    meeting.file_path = config.notes_dir / meeting.get_relative_path()
+    meeting.file_path.parent.mkdir(parents=True, exist_ok=True)
+    storage.save_note(meeting)
+    index.add_note(meeting)
 
-        return config, storage, index
+    return config, storage, index
+
+
+class TestWikiLinksE2E:
+    """End-to-end tests for the complete wiki links workflow."""
 
     def test_link_extraction_workflow(self, setup_notes):
         """Test complete workflow of extracting and resolving links."""
@@ -239,9 +240,7 @@ Reference: [[Project Alpha^decision1]]
         assert "Other Project" in broken_targets
 
         # Verify the source is Budget 2025
-        other_project_link = next(
-            bl for bl in broken if bl["target_title"] == "Other Project"
-        )
+        other_project_link = next(bl for bl in broken if bl["target_title"] == "Other Project")
         assert other_project_link["source_title"] == "Budget 2025"
 
         index.close()
