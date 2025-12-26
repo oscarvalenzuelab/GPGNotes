@@ -106,7 +106,12 @@ Reference: [[Project Alpha^decision1]]
 
     # Re-index links now that all notes exist
     # This is necessary because earlier notes may have links to later notes that didn't exist yet
-    # Need to re-add notes to trigger link resolution for previously unresolved links
+    # Need to re-load and re-add notes to ensure we have fresh copies from disk
+    project = storage.load_note(project.file_path)
+    team = storage.load_note(team.file_path)
+    budget = storage.load_note(budget.file_path)
+    meeting = storage.load_note(meeting.file_path)
+
     index.add_note(project)
     index.add_note(team)
     index.add_note(budget)
