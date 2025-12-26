@@ -143,12 +143,12 @@ class TestExtractBlockRefs:
         content = """
 First block. ^abc123
 Second block. ^def456
-Third block. ^789xyz
+Third block. ^abcdef
         """
         blocks = extract_block_refs(content)
 
         assert len(blocks) == 3
-        assert [b.block_id for b in blocks] == ["abc123", "def456", "789xyz"]
+        assert [b.block_id for b in blocks] == ["abc123", "def456", "abcdef"]
 
     def test_extract_no_block_refs(self):
         """Test content with no block references."""
