@@ -219,7 +219,7 @@ class LinkResolver:
         year = note_id[:4]
         month = note_id[4:6]
 
-        # Check both encrypted and plain versions
+        # Check both encrypted and plain versions in notes_dir
         base_path = self.config.notes_dir / year / month
         encrypted_path = base_path / f"{note_id}.md.gpg"
         plain_path = base_path / f"{note_id}.md"
@@ -228,6 +228,14 @@ class LinkResolver:
             return encrypted_path
         elif plain_path.exists():
             return plain_path
+
+        # Also check in plain_dir if it exists
+        plain_dir = self.config.notes_dir.parent / "notes_plain"
+        if plain_dir.exists():
+            plain_base_path = plain_dir / year / month
+            plain_dir_path = plain_base_path / f"{note_id}.md"
+            if plain_dir_path.exists():
+                return plain_dir_path
 
         return None
 
