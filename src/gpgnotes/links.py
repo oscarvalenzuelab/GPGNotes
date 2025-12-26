@@ -48,7 +48,7 @@ WIKI_LINK_PATTERN = re.compile(
     r"\[\["  # Opening [[
     r"([^\]#^|]+)"  # target (required) - note title or ID
     r"(?:#([^\]^|]+))?"  # section (optional) - #heading
-    r"(?:\^([a-f0-9]+))?"  # block_id (optional) - ^abc123
+    r"(?:\^([a-zA-Z0-9]+))?"  # block_id (optional) - ^abc123
     r"(?:\|([^\]]+))?"  # alias (optional) - |display text
     r"\]\]",  # Closing ]]
     re.MULTILINE,
