@@ -221,7 +221,9 @@ class SearchIndex:
 
         return [(row["file_path"], row["title"], row["modified"]) for row in cursor]
 
-    def search_by_title(self, title: str, exact: bool = True) -> List[Tuple[str, str, str]]:
+    def search_by_title(
+        self, title: str, exact: bool = True
+    ) -> List[Tuple[str, str, str]]:
         """Search notes by title.
 
         Args:
