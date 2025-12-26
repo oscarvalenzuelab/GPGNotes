@@ -129,6 +129,11 @@ class TestWikiLinksE2E:
 
         # Load the project note
         results = index.search("Project Alpha")
+        import sys
+        print(f"\n=== SEARCH DEBUG ===", file=sys.stderr)
+        print(f"Search results count: {len(results)}", file=sys.stderr)
+        for i, r in enumerate(results[:5]):  # Show first 5
+            print(f"Result {i}: {r}", file=sys.stderr)
         assert len(results) > 0
 
         project_path = Path(results[0][0])
