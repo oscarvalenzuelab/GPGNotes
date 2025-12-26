@@ -48,7 +48,14 @@ Important decision made here. ^decision1
     )
     project.file_path = config.notes_dir / project.get_relative_path()
     project.file_path.parent.mkdir(parents=True, exist_ok=True)
-    storage.save_plain_note(project)
+    saved_path = storage.save_plain_note(project)
+
+    # Debug: verify content was saved
+    raw_content = saved_path.read_text()
+    print(f"\n=== DEBUG: Saved content for {project.title} ===")
+    print(raw_content)
+    print(f"=== Content length: {len(raw_content)} ===\n")
+
     index.add_note(project)
 
     # Create team members note
