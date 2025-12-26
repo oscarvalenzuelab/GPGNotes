@@ -178,6 +178,7 @@ class SearchIndex:
         if row:
             # Extract note_id from file path
             from pathlib import Path as PathLib
+
             note_path = PathLib(row[0])
             note_id = note_path.stem.replace(".md", "")
 
@@ -222,9 +223,7 @@ class SearchIndex:
 
         return [(row["file_path"], row["title"], row["modified"]) for row in cursor]
 
-    def search_by_title(
-        self, title: str, exact: bool = True
-    ) -> List[Tuple[str, str, str]]:
+    def search_by_title(self, title: str, exact: bool = True) -> List[Tuple[str, str, str]]:
         """Search notes by title.
 
         Args:
@@ -316,10 +315,7 @@ class SearchIndex:
             List of dicts with keys: file_path, title, tags, created, modified, is_plain
         """
         # Build query
-        query = (
-            "SELECT file_path, title, tags, created, modified, is_plain "
-            "FROM notes_fts"
-        )
+        query = "SELECT file_path, title, tags, created, modified, is_plain FROM notes_fts"
 
         # Add tag filter if specified
         params = []
@@ -369,9 +365,7 @@ class SearchIndex:
                     "tags": tags,
                     "created": row["created"],
                     "modified": row["modified"],
-                    "is_plain": (
-                        bool(row["is_plain"]) if "is_plain" in row.keys() else False
-                    ),
+                    "is_plain": (bool(row["is_plain"]) if "is_plain" in row.keys() else False),
                 }
             )
 
@@ -397,9 +391,7 @@ class SearchIndex:
                 for tag in row["tags"].split():
                     if tag.startswith("folder:"):
                         folder_name = tag[7:]  # Remove 'folder:' prefix
-                        folder_counts[folder_name] = (
-                            folder_counts.get(folder_name, 0) + 1
-                        )
+                        folder_counts[folder_name] = folder_counts.get(folder_name, 0) + 1
 
         # Sort by count descending, then by name
         return sorted(folder_counts.items(), key=lambda x: (-x[1], x[0]))
