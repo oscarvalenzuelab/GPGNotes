@@ -171,29 +171,22 @@ class LinkResolver:
         from .index import SearchIndex
 
         index = SearchIndex(self.config)
-        results = index.search(f'title:"{target}"', limit=100)
+        results = index.search_by_title(target, exact=True)
 
         for result in results:
-            # Handle tuple (file_path, title, modified) from search
-            file_path = result[0] if isinstance(result, tuple) else result["file_path"]
+            file_path, title, _ = result
             note_path = Path(file_path)
             if note_path.exists():
                 note = storage.load_note(note_path)
-                if note.title.lower() == target.lower():
-                    index.close()
-                    return note
+                index.close()
+                return note
 
         # Try fuzzy match if enabled
         if fuzzy:
-            results = index.search(target, limit=10)
+            results = index.search_by_title(target, exact=False)
             if results:
-                # Get most recent match
-                most_recent = max(
-                    results, key=lambda r: r[2] if isinstance(r, tuple) else r.get("modified", "")
-                )
-                file_path = (
-                    most_recent[0] if isinstance(most_recent, tuple) else most_recent["file_path"]
-                )
+                # Get the first (best) match
+                file_path, _, _ = results[0]
                 note_path = Path(file_path)
                 if note_path.exists():
                     note = storage.load_note(note_path)

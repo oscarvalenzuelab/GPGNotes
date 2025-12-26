@@ -201,6 +201,43 @@ class SearchIndex:
 
         return [(row["file_path"], row["title"], row["modified"]) for row in cursor]
 
+    def search_by_title(self, title: str, exact: bool = True) -> List[Tuple[str, str, str]]:
+        """Search notes by title.
+
+        Args:
+            title: Title to search for
+            exact: If True, search for exact title match
+
+        Returns:
+            List of (file_path, title, modified) tuples
+        """
+        if exact:
+            # For exact match, use SQL LIKE instead of FTS5
+            cursor = self.conn.execute(
+                """
+                SELECT file_path, title, modified
+                FROM notes_fts
+                WHERE title = ?
+                ORDER BY modified DESC
+                """,
+                (title,),
+            )
+        else:
+            # For fuzzy match, use FTS5 on title column
+            sanitized_title = title.replace('"', '""')
+            cursor = self.conn.execute(
+                """
+                SELECT file_path, title, modified
+                FROM notes_fts
+                WHERE title MATCH ?
+                ORDER BY rank
+                LIMIT 100
+                """,
+                (f'"{sanitized_title}"',),
+            )
+
+        return [(row["file_path"], row["title"], row["modified"]) for row in cursor]
+
     def search_by_tag(self, tag: str, limit: int = 50) -> List[str]:
         """Search notes by tag."""
         cursor = self.conn.execute(
