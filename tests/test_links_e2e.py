@@ -95,6 +95,13 @@ Reference: [[Project Alpha^decision1]]
     storage.save_plain_note(meeting)
     index.add_note(meeting)
 
+    # Re-index links now that all notes exist
+    # This is necessary because earlier notes may have links to later notes
+    index.index_note_links(project)
+    index.index_note_links(team)
+    index.index_note_links(budget)
+    index.index_note_links(meeting)
+
     return config, storage, index
 
 

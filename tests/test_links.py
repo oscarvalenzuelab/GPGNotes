@@ -283,6 +283,9 @@ class TestBacklinksManager:
         storage.save_plain_note(source)
         index.add_note(source)
 
+        # Re-index source links to ensure they're properly resolved
+        index.index_note_links(source)
+
         # Get backlinks
         backlinks = manager.get_backlinks(target)
         assert len(backlinks) == 1
