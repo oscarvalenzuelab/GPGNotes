@@ -77,11 +77,11 @@ class SearchIndex:
                 target_id TEXT NOT NULL,
                 target_title TEXT,
                 link_type TEXT NOT NULL DEFAULT 'note',
-                section TEXT,
-                block_id TEXT,
+                section TEXT NOT NULL DEFAULT '',
+                block_id TEXT NOT NULL DEFAULT '',
                 context TEXT,
                 created_at TEXT NOT NULL,
-                PRIMARY KEY (source_id, target_id, link_type, COALESCE(section, ''), COALESCE(block_id, ''))
+                PRIMARY KEY (source_id, target_id, link_type, section, block_id)
             )
         """)
 
@@ -523,8 +523,8 @@ class SearchIndex:
                     target_id,
                     target_title,
                     link.link_type,
-                    link.section,
-                    link.block_id,
+                    link.section or "",
+                    link.block_id or "",
                     context,
                     datetime.now().isoformat(),
                 ),
