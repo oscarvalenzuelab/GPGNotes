@@ -3557,7 +3557,7 @@ def backlinks(note_id, unlinked):
                 console.print(f"\n[cyan]📄 {source_title}[/cyan]")
 
                 if link["context"]:
-                    console.print(f"   [dim]\"{link['context']}\"[/dim]")
+                    console.print(f'   [dim]"{link["context"]}"[/dim]')
 
                 # Show link type details
                 if link["section"]:
