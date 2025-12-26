@@ -23,6 +23,7 @@ class Config:
         "auto_tag": True,
         "llm_provider": "",  # openai, claude, ollama
         "llm_model": "",  # Model name (optional)
+        "tui_show_backlinks": "both",  # "panel", "preview", "both", "none"
     }
 
     def __init__(self, config_dir: Optional[Path] = None):

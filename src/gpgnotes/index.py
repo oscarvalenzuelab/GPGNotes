@@ -25,6 +25,7 @@ class SearchIndex:
         Handles migrations for existing databases:
         - Creates notes_fts if not exists
         - Creates todos table if not exists (new in v0.3.0)
+        - Creates note_links table if not exists (new in v0.5.0)
         - Adds indexes for efficient queries
         """
         self.conn = sqlite3.connect(str(self.db_path))
@@ -67,12 +68,35 @@ class SearchIndex:
             )
         """)
 
+        # Migration: Create note_links table if it doesn't exist (v0.5.0+)
+        # Stores wiki-style links between notes for backlinks and link validation
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS note_links (
+                source_id TEXT NOT NULL,
+                source_title TEXT,
+                target_id TEXT NOT NULL,
+                target_title TEXT,
+                link_type TEXT NOT NULL DEFAULT 'note',
+                section TEXT,
+                block_id TEXT,
+                context TEXT,
+                created_at TEXT NOT NULL,
+                PRIMARY KEY (source_id, target_id, link_type, COALESCE(section, ''), COALESCE(block_id, ''))
+            )
+        """)
+
         # Create indexes for efficient queries (safe to run multiple times)
         self.conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_todos_note_path ON todos(note_path)
         """)
         self.conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_todos_completed ON todos(completed)
+        """)
+        self.conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_backlinks ON note_links(target_id)
+        """)
+        self.conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_source_links ON note_links(source_id)
         """)
 
         self.conn.commit()
@@ -129,6 +153,9 @@ class SearchIndex:
         else:
             # Clear any existing todos if note no longer has any
             self.remove_todos_for_note(file_path_str)
+
+        # Extract and index wiki links
+        self.index_note_links(note)
 
     def remove_note(self, file_path: Path):
         """Remove note from index."""
@@ -449,6 +476,154 @@ class SearchIndex:
         # Add all notes
         for note in notes:
             self.add_note(note)
+
+    def index_note_links(self, note: Note):
+        """Extract and index wiki links from a note.
+
+        Args:
+            note: Note to extract links from
+        """
+        from datetime import datetime
+
+        from .links import LinkResolver, extract_context, extract_wiki_links
+
+        # Remove old links from this note
+        self.conn.execute("DELETE FROM note_links WHERE source_id = ?", (note.note_id,))
+
+        # Extract links from content
+        links = extract_wiki_links(note.content)
+        if not links:
+            self.conn.commit()
+            return
+
+        # Resolve each link and store
+        resolver = LinkResolver(self.config)
+
+        for link in links:
+            # Try to resolve the target note
+            target_note = resolver.resolve_link(link.target, fuzzy=False)
+
+            target_id = target_note.note_id if target_note else link.target
+            target_title = target_note.title if target_note else link.target
+
+            # Extract context around the link
+            context = extract_context(note.content, link.position)
+
+            # Insert link
+            self.conn.execute(
+                """
+                INSERT OR REPLACE INTO note_links
+                (source_id, source_title, target_id, target_title, link_type,
+                 section, block_id, context, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    note.note_id,
+                    note.title,
+                    target_id,
+                    target_title,
+                    link.link_type,
+                    link.section,
+                    link.block_id,
+                    context,
+                    datetime.now().isoformat(),
+                ),
+            )
+
+        self.conn.commit()
+
+    def get_note_links(self, note_id: str) -> List[dict]:
+        """Get all outgoing links from a note.
+
+        Args:
+            note_id: Source note ID
+
+        Returns:
+            List of link dicts
+        """
+        cursor = self.conn.execute(
+            """
+            SELECT target_id, target_title, link_type, section, block_id, context
+            FROM note_links
+            WHERE source_id = ?
+            ORDER BY target_title
+            """,
+            (note_id,),
+        )
+
+        return [dict(row) for row in cursor]
+
+    def get_backlinks(self, note_id: str) -> List[dict]:
+        """Get all backlinks (incoming links) to a note.
+
+        Args:
+            note_id: Target note ID
+
+        Returns:
+            List of backlink dicts with source note info
+        """
+        cursor = self.conn.execute(
+            """
+            SELECT source_id, source_title, link_type, section, block_id, context
+            FROM note_links
+            WHERE target_id = ?
+            ORDER BY source_title
+            """,
+            (note_id,),
+        )
+
+        return [dict(row) for row in cursor]
+
+    def get_backlink_count(self, note_id: str) -> int:
+        """Get count of backlinks to a note.
+
+        Args:
+            note_id: Target note ID
+
+        Returns:
+            Number of backlinks
+        """
+        cursor = self.conn.execute(
+            """
+            SELECT COUNT(*) as count
+            FROM note_links
+            WHERE target_id = ?
+            """,
+            (note_id,),
+        )
+
+        row = cursor.fetchone()
+        return row["count"] if row else 0
+
+    def get_broken_links(self) -> List[dict]:
+        """Find all broken links (links to non-existent notes).
+
+        Returns:
+            List of broken link dicts
+        """
+        # Get all unique target_ids from links
+        cursor = self.conn.execute(
+            """
+            SELECT DISTINCT l.source_id, l.source_title, l.target_id, l.target_title,
+                   l.link_type, l.section, l.block_id, l.context
+            FROM note_links l
+            LEFT JOIN notes_fts n ON l.target_id = n.file_path
+                OR '/' || l.target_id || '.md.gpg' = SUBSTR(n.file_path, -LENGTH(l.target_id) - 7)
+            WHERE n.file_path IS NULL
+            ORDER BY l.source_title, l.target_title
+            """
+        )
+
+        return [dict(row) for row in cursor]
+
+    def remove_links_for_note(self, note_id: str):
+        """Remove all links from a note.
+
+        Args:
+            note_id: Note ID to remove links for
+        """
+        self.conn.execute("DELETE FROM note_links WHERE source_id = ?", (note_id,))
+        self.conn.commit()
 
     def close(self):
         """Close database connection."""
