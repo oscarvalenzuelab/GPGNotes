@@ -134,8 +134,18 @@ class TestWikiLinksE2E:
         project_path = Path(results[0][0])
         project = storage.load_note(project_path)
 
+        # DEBUG: Check what we loaded
+        import sys
+        print(f"\n=== FIXTURE DEBUG ===", file=sys.stderr)
+        print(f"Loaded path: {project_path}", file=sys.stderr)
+        print(f"Title: {project.title}", file=sys.stderr)
+        print(f"Content length: {len(project.content)}", file=sys.stderr)
+        print(f"Content preview: {repr(project.content[:200])}", file=sys.stderr)
+        print(f"Has wiki links in content: {'[[' in project.content}", file=sys.stderr)
+
         # Extract links
         links = extract_wiki_links(project.content)
+        print(f"Extracted links: {len(links)}", file=sys.stderr)
         assert len(links) == 2  # Team Members and Budget 2025
 
         # Verify link details
