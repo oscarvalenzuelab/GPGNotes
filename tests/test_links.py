@@ -260,6 +260,8 @@ class TestBacklinksManager:
 
     def test_get_backlinks(self, tmp_path):
         """Test getting backlinks for a note."""
+        from datetime import datetime, timedelta
+
         config = Config(tmp_path)
         config.ensure_dirs()
 
@@ -267,8 +269,10 @@ class TestBacklinksManager:
         index = SearchIndex(config)
         manager = BacklinksManager(config)
 
+        base_time = datetime(2025, 1, 1, 10, 0, 0)
+
         # Create target note
-        target = Note(title="Target Note", content="Target content")
+        target = Note(title="Target Note", content="Target content", created=base_time)
         target.file_path = config.notes_dir / target.get_relative_path()
         target.file_path.parent.mkdir(parents=True, exist_ok=True)
         storage.save_plain_note(target)
@@ -276,7 +280,9 @@ class TestBacklinksManager:
 
         # Create source note with link
         source = Note(
-            title="Source Note", content="Link to [[Target Note]] here."
+            title="Source Note",
+            content="Link to [[Target Note]] here.",
+            created=base_time + timedelta(seconds=1)
         )
         source.file_path = config.notes_dir / source.get_relative_path()
         source.file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -295,6 +301,8 @@ class TestBacklinksManager:
 
     def test_get_backlink_count(self, tmp_path):
         """Test getting backlink count."""
+        from datetime import datetime, timedelta
+
         config = Config(tmp_path)
         config.ensure_dirs()
 
@@ -302,8 +310,10 @@ class TestBacklinksManager:
         index = SearchIndex(config)
         manager = BacklinksManager(config)
 
+        base_time = datetime(2025, 1, 1, 10, 0, 0)
+
         # Create target note
-        target = Note(title="Popular Note", content="Content")
+        target = Note(title="Popular Note", content="Content", created=base_time)
         target.file_path = config.notes_dir / target.get_relative_path()
         target.file_path.parent.mkdir(parents=True, exist_ok=True)
         storage.save_plain_note(target)
@@ -312,7 +322,9 @@ class TestBacklinksManager:
         # Create multiple source notes
         for i in range(3):
             source = Note(
-                title=f"Source {i}", content=f"Link to [[Popular Note]]."
+                title=f"Source {i}",
+                content=f"Link to [[Popular Note]].",
+                created=base_time + timedelta(seconds=i+1)
             )
             source.file_path = config.notes_dir / source.get_relative_path()
             source.file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -327,6 +339,8 @@ class TestBacklinksManager:
 
     def test_find_unlinked_mentions(self, tmp_path):
         """Test finding unlinked mentions."""
+        from datetime import datetime, timedelta
+
         config = Config(tmp_path)
         config.ensure_dirs()
 
@@ -334,8 +348,10 @@ class TestBacklinksManager:
         index = SearchIndex(config)
         manager = BacklinksManager(config)
 
+        base_time = datetime(2025, 1, 1, 10, 0, 0)
+
         # Create target note
-        target = Note(title="Important Topic", content="Content")
+        target = Note(title="Important Topic", content="Content", created=base_time)
         target.file_path = config.notes_dir / target.get_relative_path()
         target.file_path.parent.mkdir(parents=True, exist_ok=True)
         storage.save_plain_note(target)
@@ -345,6 +361,7 @@ class TestBacklinksManager:
         mention = Note(
             title="Discussion",
             content="We talked about Important Topic today.",
+            created=base_time + timedelta(seconds=1)
         )
         mention.file_path = config.notes_dir / mention.get_relative_path()
         mention.file_path.parent.mkdir(parents=True, exist_ok=True)

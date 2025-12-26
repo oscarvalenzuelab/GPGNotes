@@ -15,14 +15,20 @@ from gpgnotes.blocks import add_block_id, extract_headings
 @pytest.fixture
 def setup_notes(tmp_path):
     """Set up a small knowledge base with linked notes."""
+    import time
+    from datetime import datetime, timedelta
+
     config = Config(tmp_path)
     config.ensure_dirs()
     storage = Storage(config)
     index = SearchIndex(config)
 
+    base_time = datetime(2025, 1, 1, 10, 0, 0)
+
     # Create a project plan note
     project = Note(
         title="Project Alpha",
+        created=base_time,
         content="""# Project Alpha
 
 ## Overview
@@ -48,6 +54,7 @@ Important decision made here. ^decision1
     # Create team members note
     team = Note(
         title="Team Members",
+        created=base_time + timedelta(seconds=1),
         content="""# Team Members
 
 ## Core Team
@@ -67,6 +74,7 @@ Working on [[Project Alpha]].
     # Create budget note
     budget = Note(
         title="Budget 2025",
+        created=base_time + timedelta(seconds=2),
         content="""# Budget 2025
 
 Allocated $50k to [[Project Alpha#Timeline|the project timeline]].
@@ -83,6 +91,7 @@ Also funding [[Other Project]].
     # Create meeting notes
     meeting = Note(
         title="Meeting Notes - Jan 15",
+        created=base_time + timedelta(seconds=3),
         content="""# Meeting Notes
 
 Discussed Project Alpha timeline.
