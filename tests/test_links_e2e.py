@@ -120,6 +120,16 @@ Reference: [[Project Alpha^decision1]]
     return config, storage, index
 
 
+def find_note_by_title(index, storage, title):
+    """Helper to find a note by exact title match."""
+    results = index.search(title)
+    for result in results:
+        path, result_title, _ = result
+        if result_title == title:
+            return storage.load_note(Path(path))
+    return None
+
+
 class TestWikiLinksE2E:
     """End-to-end tests for the complete wiki links workflow."""
 
@@ -128,29 +138,11 @@ class TestWikiLinksE2E:
         config, storage, index = setup_notes
 
         # Load the project note
-        results = index.search("Project Alpha")
-        import sys
-        print(f"\n=== SEARCH DEBUG ===", file=sys.stderr)
-        print(f"Search results count: {len(results)}", file=sys.stderr)
-        for i, r in enumerate(results[:5]):  # Show first 5
-            print(f"Result {i}: {r}", file=sys.stderr)
-        assert len(results) > 0
-
-        project_path = Path(results[0][0])
-        project = storage.load_note(project_path)
-
-        # DEBUG: Check what we loaded
-        import sys
-        print(f"\n=== FIXTURE DEBUG ===", file=sys.stderr)
-        print(f"Loaded path: {project_path}", file=sys.stderr)
-        print(f"Title: {project.title}", file=sys.stderr)
-        print(f"Content length: {len(project.content)}", file=sys.stderr)
-        print(f"Content preview: {repr(project.content[:200])}", file=sys.stderr)
-        print(f"Has wiki links in content: {'[[' in project.content}", file=sys.stderr)
+        project = find_note_by_title(index, storage, "Project Alpha")
+        assert project is not None
 
         # Extract links
         links = extract_wiki_links(project.content)
-        print(f"Extracted links: {len(links)}", file=sys.stderr)
         assert len(links) == 2  # Team Members and Budget 2025
 
         # Verify link details
@@ -174,9 +166,8 @@ class TestWikiLinksE2E:
         config, storage, index = setup_notes
 
         # Load Project Alpha
-        results = index.search("Project Alpha")
-        project_path = Path(results[0][0])
-        project = storage.load_note(project_path)
+        project = find_note_by_title(index, storage, "Project Alpha")
+        assert project is not None
 
         # Get backlinks
         backlinks = index.get_backlinks(project.note_id)
@@ -200,9 +191,8 @@ class TestWikiLinksE2E:
         config, storage, index = setup_notes
 
         # Load budget note which links to Project Alpha#Timeline
-        results = index.search("Budget 2025")
-        budget_path = Path(results[0][0])
-        budget = storage.load_note(budget_path)
+        budget = find_note_by_title(index, storage, "Budget 2025")
+        assert budget is not None
 
         # Extract links
         links = extract_wiki_links(budget.content)
@@ -220,9 +210,8 @@ class TestWikiLinksE2E:
         assert section_link.alias == "the project timeline"
 
         # Verify the section exists in target note
-        results = index.search("Project Alpha")
-        project_path = Path(results[0][0])
-        project = storage.load_note(project_path)
+        project = find_note_by_title(index, storage, "Project Alpha")
+        assert project is not None
 
         headings = extract_headings(project.content)
         heading_slugs = [h.slug for h in headings]
@@ -235,9 +224,8 @@ class TestWikiLinksE2E:
         config, storage, index = setup_notes
 
         # Load meeting notes which reference Project Alpha^decision1
-        results = index.search("Meeting Notes")
-        meeting_path = Path(results[0][0])
-        meeting = storage.load_note(meeting_path)
+        meeting = find_note_by_title(index, storage, "Meeting Notes")
+        assert meeting is not None
 
         # Extract links
         links = extract_wiki_links(meeting.content)
@@ -254,9 +242,8 @@ class TestWikiLinksE2E:
         assert block_link.block_id == "decision1"
 
         # Verify block exists in target note
-        results = index.search("Project Alpha")
-        project_path = Path(results[0][0])
-        project = storage.load_note(project_path)
+        project = find_note_by_title(index, storage, "Project Alpha")
+        assert project is not None
 
         assert "^decision1" in project.content
 
@@ -287,9 +274,8 @@ class TestWikiLinksE2E:
         config, storage, index = setup_notes
 
         # Load team members note
-        results = index.search("Team Members")
-        team_path = Path(results[0][0])
-        team = storage.load_note(team_path)
+        team = find_note_by_title(index, storage, "Team Members")
+        assert team is not None
 
         # Add a new link
         team.content += "\n\nSee also [[Budget 2025]] for funding."
@@ -312,9 +298,8 @@ class TestWikiLinksE2E:
         config, storage, index = setup_notes
 
         # Load team members note
-        results = index.search("Team Members")
-        team_path = Path(results[0][0])
-        team = storage.load_note(team_path)
+        team = find_note_by_title(index, storage, "Team Members")
+        assert team is not None
         team_id = team.note_id
 
         # Verify it has links
@@ -384,9 +369,8 @@ class TestWikiLinksE2E:
         index.add_note(casual)
 
         # Load Project Alpha
-        results = index.search("Project Alpha")
-        project_path = Path(results[0][0])
-        project = storage.load_note(project_path)
+        project = find_note_by_title(index, storage, "Project Alpha")
+        assert project is not None
 
         # Find unlinked mentions
         manager = BacklinksManager(config)
