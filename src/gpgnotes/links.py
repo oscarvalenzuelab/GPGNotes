@@ -230,7 +230,7 @@ class LinkResolver:
             return plain_path
 
         # Also check in plain_dir if it exists
-        plain_dir = self.config.notes_dir.parent / "notes_plain"
+        plain_dir = self.config.notes_dir / "plain"
         if plain_dir.exists():
             plain_base_path = plain_dir / year / month
             plain_dir_path = plain_base_path / f"{note_id}.md"
