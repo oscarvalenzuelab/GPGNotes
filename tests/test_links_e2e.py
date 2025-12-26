@@ -307,7 +307,7 @@ class TestWikiLinksE2E:
         assert len(links_before) > 0
 
         # Delete the note
-        index.remove_note(team_path)
+        index.remove_note(team.file_path)
 
         # Verify links are gone
         links_after = index.get_note_links(team_id)
