@@ -42,7 +42,7 @@ Important decision made here. ^decision1
     )
     project.file_path = config.notes_dir / project.get_relative_path()
     project.file_path.parent.mkdir(parents=True, exist_ok=True)
-    storage.save_note(project)
+    storage.save_plain_note(project)
     index.add_note(project)
 
     # Create team members note
@@ -61,7 +61,7 @@ Working on [[Project Alpha]].
     )
     team.file_path = config.notes_dir / team.get_relative_path()
     team.file_path.parent.mkdir(parents=True, exist_ok=True)
-    storage.save_note(team)
+    storage.save_plain_note(team)
     index.add_note(team)
 
     # Create budget note
@@ -77,7 +77,7 @@ Also funding [[Other Project]].
     )
     budget.file_path = config.notes_dir / budget.get_relative_path()
     budget.file_path.parent.mkdir(parents=True, exist_ok=True)
-    storage.save_note(budget)
+    storage.save_plain_note(budget)
     index.add_note(budget)
 
     # Create meeting notes
@@ -92,7 +92,7 @@ Reference: [[Project Alpha^decision1]]
     )
     meeting.file_path = config.notes_dir / meeting.get_relative_path()
     meeting.file_path.parent.mkdir(parents=True, exist_ok=True)
-    storage.save_note(meeting)
+    storage.save_plain_note(meeting)
     index.add_note(meeting)
 
     return config, storage, index
@@ -257,7 +257,7 @@ class TestWikiLinksE2E:
         # Add a new link
         team.content += "\n\nSee also [[Budget 2025]] for funding."
         team.update_modified()
-        storage.save_note(team)
+        storage.save_plain_note(team)
         index.add_note(team)
 
         # Check links were updated
@@ -343,7 +343,7 @@ class TestWikiLinksE2E:
         )
         casual.file_path = config.notes_dir / casual.get_relative_path()
         casual.file_path.parent.mkdir(parents=True, exist_ok=True)
-        storage.save_note(casual)
+        storage.save_plain_note(casual)
         index.add_note(casual)
 
         # Load Project Alpha

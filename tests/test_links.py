@@ -190,7 +190,7 @@ class TestLinkResolver:
         )
         note.file_path = config.notes_dir / note.get_relative_path()
         note.file_path.parent.mkdir(parents=True, exist_ok=True)
-        storage.save_note(note)
+        storage.save_plain_note(note)
 
         # Resolve by ID
         resolved = resolver.resolve_link(note.note_id, storage, fuzzy=False)
@@ -210,7 +210,7 @@ class TestLinkResolver:
         note = Note(title="Project Alpha", content="Content")
         note.file_path = config.notes_dir / note.get_relative_path()
         note.file_path.parent.mkdir(parents=True, exist_ok=True)
-        storage.save_note(note)
+        storage.save_plain_note(note)
         index.add_note(note)
 
         # Resolve by title
@@ -233,7 +233,7 @@ class TestLinkResolver:
         note = Note(title="Important Meeting Notes", content="Content")
         note.file_path = config.notes_dir / note.get_relative_path()
         note.file_path.parent.mkdir(parents=True, exist_ok=True)
-        storage.save_note(note)
+        storage.save_plain_note(note)
         index.add_note(note)
 
         # Fuzzy match should find it
@@ -271,7 +271,7 @@ class TestBacklinksManager:
         target = Note(title="Target Note", content="Target content")
         target.file_path = config.notes_dir / target.get_relative_path()
         target.file_path.parent.mkdir(parents=True, exist_ok=True)
-        storage.save_note(target)
+        storage.save_plain_note(target)
         index.add_note(target)
 
         # Create source note with link
@@ -280,7 +280,7 @@ class TestBacklinksManager:
         )
         source.file_path = config.notes_dir / source.get_relative_path()
         source.file_path.parent.mkdir(parents=True, exist_ok=True)
-        storage.save_note(source)
+        storage.save_plain_note(source)
         index.add_note(source)
 
         # Get backlinks
@@ -303,7 +303,7 @@ class TestBacklinksManager:
         target = Note(title="Popular Note", content="Content")
         target.file_path = config.notes_dir / target.get_relative_path()
         target.file_path.parent.mkdir(parents=True, exist_ok=True)
-        storage.save_note(target)
+        storage.save_plain_note(target)
         index.add_note(target)
 
         # Create multiple source notes
@@ -313,7 +313,7 @@ class TestBacklinksManager:
             )
             source.file_path = config.notes_dir / source.get_relative_path()
             source.file_path.parent.mkdir(parents=True, exist_ok=True)
-            storage.save_note(source)
+            storage.save_plain_note(source)
             index.add_note(source)
 
         # Check count
@@ -335,7 +335,7 @@ class TestBacklinksManager:
         target = Note(title="Important Topic", content="Content")
         target.file_path = config.notes_dir / target.get_relative_path()
         target.file_path.parent.mkdir(parents=True, exist_ok=True)
-        storage.save_note(target)
+        storage.save_plain_note(target)
         index.add_note(target)
 
         # Create note with unlinked mention
@@ -345,7 +345,7 @@ class TestBacklinksManager:
         )
         mention.file_path = config.notes_dir / mention.get_relative_path()
         mention.file_path.parent.mkdir(parents=True, exist_ok=True)
-        storage.save_note(mention)
+        storage.save_plain_note(mention)
         index.add_note(mention)
 
         # Find unlinked mentions
